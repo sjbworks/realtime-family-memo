@@ -1,5 +1,5 @@
-import { LoginForm } from "@/components/login-form";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { MfaEnrollForm } from '@/components/auth/mfa-enroll-form'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export default function Page() {
   return (
@@ -7,7 +7,7 @@ export default function Page() {
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
-      <LoginForm />
+      <MfaEnrollForm />
     </main>
-  );
+  )
 }
