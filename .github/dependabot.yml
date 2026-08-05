@@ -18,6 +18,26 @@ updates:
     schedule:
       interval: "weekly"
     groups:
+      # 通常の依存。lint ツールチェインは下の専用グループへ切り出す。
       npm-dependencies:
         patterns:
           - "*"
+        exclude-patterns:
+          - "eslint"
+          - "eslint-config-next"
+          - "typescript"
+          - "@typescript/native"
+      # lint ツールチェインは意図的にダウングレード中（下記の理由）。
+      # ここを独立 PR にすることで:
+      #   - eslint 10 等を混ぜて他の更新まで巻き添えで壊すのを防ぐ
+      #   - この PR の CI が緑になった時が「エコシステムが追いついた合図」になる
+      # 背景:
+      #   - typescript-eslint が TS 7.0 API 未対応 → typescript は @typescript/typescript6 に alias 中
+      #     https://github.com/typescript-eslint/typescript-eslint/issues/10940
+      #   - eslint-plugin-react が ESLint 10 未対応 → eslint は 9.x に固定中
+      lint-toolchain:
+        patterns:
+          - "eslint"
+          - "eslint-config-next"
+          - "typescript"
+          - "@typescript/native"
