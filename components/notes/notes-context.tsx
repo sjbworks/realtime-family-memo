@@ -56,16 +56,18 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   const activePage =
     allPages.find((p) => p.id === activePageId) ?? groups[0]?.pages[0] ?? allPages[0]
 
-  // simulate autosave when switching pages
+  // simulate autosave when switching pages: setSaving(true) is triggered from
+  // the event handlers below, and this effect clears it after a delay.
   useEffect(() => {
-    setSaving(true)
+    if (!saving) return
     const t = setTimeout(() => setSaving(false), 1000)
     return () => clearTimeout(t)
-  }, [activePageId])
+  }, [saving])
 
   function selectPage(id: string) {
     setActivePageId(id)
     setDrawerOpen(false)
+    setSaving(true)
   }
 
   function toggleGroup(id: string) {
@@ -115,6 +117,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       // navigate to the freshly created page
       setActivePageId(editing.id)
       setDrawerOpen(false)
+      setSaving(true)
     }
     setEditing(null)
   }
