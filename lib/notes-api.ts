@@ -1,0 +1,130 @@
+import { createClient } from '@/lib/supabase/client'
+import type { Group, Page } from '@/lib/notes-data'
+
+/**
+ * public.pages の行。parent_id が null ならサイドバーのグループ、
+ * 値が入っていればそのグループ配下のページを表す。
+ */
+export type PageRow = {
+  id: string
+  parent_id: string | null
+  title: string
+  position: number | null
+  created_by: string | null
+  updated_by: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type CurrentUser = { id: string; name: string }
+
+const ROW_COLUMNS = 'id, parent_id, title, position, created_by, updated_by, created_at, updated_at'
+
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase.auth.getUser()
+  if (error) throw error
+
+  const user = data.user
+  if (!user) return null
+
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>
+  const name =
+    [meta.display_name, meta.name, meta.full_name].find(
+      (v): v is string => typeof v === 'string' && v.trim() !== '',
+    ) ??
+    user.email?.split('@')[0] ??
+    'ユーザー'
+
+  return { id: user.id, name }
+}
+
+export async function fetchPageRows(): Promise<PageRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('pages')
+    .select(ROW_COLUMNS)
+    .order('position', { ascending: true, nullsFirst: true })
+    .order('created_at', { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as PageRow[]
+}
+
+export async function insertPageRow(input: {
+  parentId: string | null
+  title: string
+  position: number
+  userId: string
+}): Promise<PageRow> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('pages')
+    .insert({
+      parent_id: input.parentId,
+      title: input.title,
+      position: input.position,
+      created_by: input.userId,
+      updated_by: input.userId,
+    })
+    .select(ROW_COLUMNS)
+    .single()
+
+  if (error) throw error
+  return data as PageRow
+}
+
+export async function updatePageTitle(id: string, title: string, userId: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('pages')
+    .update({ title, updated_by: userId })
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+/** 子ページは FK の ON DELETE CASCADE で一緒に削除される */
+export async function deletePageRow(id: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('pages').delete().eq('id', id)
+  if (error) throw error
+}
+
+/** フラットな行の配列を、サイドバー用の 2 階層ツリーに畳む */
+export function buildTree(rows: PageRow[]): Group[] {
+  const groups: Group[] = []
+  const byId = new Map<string, Group>()
+
+  for (const row of rows) {
+    if (row.parent_id !== null) continue
+    const group: Group = { id: row.id, name: row.title, pages: [] }
+    byId.set(group.id, group)
+    groups.push(group)
+  }
+
+  for (const row of rows) {
+    if (row.parent_id === null) continue
+    // 孫以降の階層は今のサイドバーでは表示しないため、親がグループの行だけ拾う
+    const group = byId.get(row.parent_id)
+    if (!group) continue
+    group.pages.push(toPage(row, group.id))
+  }
+
+  return groups
+}
+
+export function toPage(row: PageRow, groupId: string): Page {
+  return {
+    id: row.id,
+    groupId,
+    title: row.title,
+    updatedById: row.updated_by,
+    updatedAt: row.updated_at,
+  }
+}
+
+export function toErrorMessage(e: unknown, fallback: string): string {
+  if (e instanceof Error && e.message) return `${fallback}（${e.message}）`
+  return fallback
+}

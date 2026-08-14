@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, Cloud, Loader2, LogOut, Menu, PanelLeftOpen, X } from 'lucide-react'
+import { AlertCircle, Check, Cloud, Loader2, LogOut, Menu, PanelLeftOpen, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { users } from '@/lib/notes-data'
 import { SidebarPanel } from '@/components/notes/sidebar-panel'
@@ -19,13 +19,17 @@ export function NotesApp() {
     drawerOpen,
     collapsed,
     saving,
+    loading,
+    error,
+    currentUser,
+    dismissError,
     setDrawerOpen,
     setCollapsed,
   } = useNotes()
 
   const router = useRouter()
   const partner = users[1]
-  const showPresence = partnerViewing.has(activePageId)
+  const showPresence = activePageId !== null && partnerViewing.has(activePageId)
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -95,10 +99,10 @@ export function NotesApp() {
           {/* center title (mobile) / breadcrumb (desktop) */}
           <div className="min-w-0 flex-1 text-center md:text-left">
             <span className="block truncate text-sm font-medium text-foreground md:hidden">
-              {activePage.title}
+              {activePage?.title ?? 'ふたりノート'}
             </span>
             <span className="hidden truncate text-sm text-muted-foreground md:block">
-              マイページ / {activePage.title}
+              マイページ{activePage ? ` / ${activePage.title}` : ''}
             </span>
           </div>
 
@@ -140,6 +144,27 @@ export function NotesApp() {
 
         {/* Scrollable content */}
         <main className="flex-1 overflow-y-auto">
+          {/* Error banner */}
+          {error && (
+            <div className="mx-auto flex w-full max-w-2xl items-start gap-2 px-5 pt-4 md:px-8">
+              <div
+                role="alert"
+                className="flex w-full items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                <span className="flex-1 text-pretty">{error}</span>
+                <button
+                  type="button"
+                  onClick={dismissError}
+                  aria-label="エラーを閉じる"
+                  className="shrink-0 rounded-sm p-0.5 hover:bg-destructive/15"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Presence banner */}
           {showPresence && (
             <div className="mx-auto flex w-full max-w-2xl items-center gap-2 px-5 pt-4 md:px-8">
@@ -157,7 +182,15 @@ export function NotesApp() {
             </div>
           )}
 
-          <NoteEditor page={activePage} />
+          {activePage ? (
+            <NoteEditor page={activePage} currentUser={currentUser} />
+          ) : (
+            <div className="mx-auto w-full max-w-2xl px-5 py-10 text-sm text-muted-foreground md:px-8">
+              {loading
+                ? '読み込み中...'
+                : 'ページがありません。サイドバーの ＋ から作成してください。'}
+            </div>
+          )}
         </main>
       </div>
     </div>
