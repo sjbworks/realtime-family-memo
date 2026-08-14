@@ -6,12 +6,13 @@ import {
   FileText,
   Folder,
   GripVertical,
-  MoreVertical,
   Plus,
   Search,
 } from 'lucide-react'
 import { useNotes } from '@/components/notes/notes-context'
 import { InlineEdit } from '@/components/notes/inline-edit'
+import { RowMenu } from '@/components/notes/row-menu'
+import { DEFAULT_PAGE_TITLE, type Page } from '@/lib/notes-data'
 
 export function SidebarContent() {
   const {
@@ -19,12 +20,22 @@ export function SidebarContent() {
     openGroups,
     activePageId,
     editingId,
+    loading,
     selectPage,
     toggleGroup,
     addPage,
+    startRename,
+    removePage,
     commitEdit,
     cancelEdit,
   } = useNotes()
+
+  function confirmDelete(page: Page) {
+    const title = page.title || DEFAULT_PAGE_TITLE
+    if (window.confirm(`「${title}」を削除しますか？この操作は取り消せません。`)) {
+      removePage(page.id)
+    }
+  }
 
   return (
     <nav className="flex flex-1 flex-col overflow-y-auto px-2 py-3" aria-label="ページ一覧">
@@ -39,6 +50,14 @@ export function SidebarContent() {
           />
         </div>
       </div>
+
+      {loading && <p className="px-2 py-2 text-sm text-muted-foreground">読み込み中...</p>}
+
+      {!loading && groups.length === 0 && (
+        <p className="px-2 py-2 text-sm text-muted-foreground text-pretty">
+          まだグループがありません。下の「新しいグループ」から作成してください。
+        </p>
+      )}
 
       <ul className="flex flex-col gap-0.5">
         {groups.map((group) => (
@@ -120,13 +139,12 @@ export function SidebarContent() {
                             <span className="truncate text-sm">{page.title}</span>
                           </button>
                         )}
-                        <button
-                          type="button"
-                          aria-label={`${page.title || 'ページ'}のメニュー`}
-                          className="mr-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-sidebar-border hover:text-sidebar-foreground md:opacity-0 md:group-hover/p:opacity-100"
-                        >
-                          <MoreVertical className="size-4" />
-                        </button>
+                        <RowMenu
+                          label={page.title || DEFAULT_PAGE_TITLE}
+                          onRename={() => startRename(page.id, 'page')}
+                          onDelete={() => confirmDelete(page)}
+                          className="md:opacity-0 md:group-hover/p:opacity-100"
+                        />
                       </div>
                     </li>
                   )

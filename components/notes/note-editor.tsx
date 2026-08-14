@@ -1,7 +1,7 @@
 'use client'
 
 import { GripVertical, Plus } from 'lucide-react'
-import type { Page } from '@/lib/notes-data'
+import { formatRelativeTime, resolveUserName, type Page } from '@/lib/notes-data'
 
 type Block =
   | { type: 'h1'; text: string }
@@ -138,13 +138,19 @@ function renderBlock(block: Block, i: number) {
   }
 }
 
-export function NoteEditor({ page }: { page: Page }) {
+type Props = {
+  page: Page
+  currentUser: { id: string; name: string } | null
+}
+
+export function NoteEditor({ page, currentUser }: Props) {
   const blocks = sampleContent[page.id] ?? defaultContent
 
   return (
     <div className="mx-auto w-full max-w-2xl px-5 py-6 md:px-8 md:py-10">
       {/* Title */}
       <h1
+        key={page.id}
         contentEditable
         suppressContentEditableWarning
         spellCheck={false}
@@ -155,7 +161,8 @@ export function NoteEditor({ page }: { page: Page }) {
 
       {/* Meta */}
       <p className="mt-2 text-xs text-muted-foreground">
-        最終更新: {page.updatedBy} ・ {page.updatedAt}
+        最終更新: {resolveUserName(page.updatedById, currentUser)} ・{' '}
+        {formatRelativeTime(page.updatedAt)}
       </p>
 
       {/* Blocks */}
