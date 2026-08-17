@@ -5,13 +5,22 @@ export type User = {
   color: string
 }
 
+/**
+ * サイドバーの子ページ。DB 上は pages テーブルの parent_id が入っている行。
+ */
 export type Page = {
   id: string
+  groupId: string
   title: string
-  updatedBy: string
-  updatedAt: string
+  /** 最終更新者の auth.users.id。表示名の解決は resolveUserName() で行う */
+  updatedById: string | null
+  /** ISO8601。表示は formatRelativeTime() で相対表記にする */
+  updatedAt: string | null
 }
 
+/**
+ * サイドバーのグループ。DB 上は pages テーブルの parent_id が null の行。
+ */
 export type Group = {
   id: string
   name: string
@@ -23,23 +32,33 @@ export const users: User[] = [
   { id: 'takumi', name: 'たくみ', initial: 'た', color: 'bg-presence text-primary-foreground' },
 ]
 
-export const groups: Group[] = [
-  {
-    id: 'home',
-    name: '家のこと',
-    pages: [
-      { id: 'cleaning', title: '掃除当番表', updatedBy: 'はるか', updatedAt: '3分前' },
-      { id: 'trash', title: 'ゴミ出しカレンダー', updatedBy: 'たくみ', updatedAt: '昨日' },
-      { id: 'shopping', title: '買い物リスト', updatedBy: 'はるか', updatedAt: '2日前' },
-    ],
-  },
-  {
-    id: 'nursery',
-    name: '保育園のこと',
-    pages: [
-      { id: 'belongings', title: '持ち物リスト', updatedBy: 'たくみ', updatedAt: '1時間前' },
-      { id: 'events', title: '行事予定', updatedBy: 'はるか', updatedAt: '4日前' },
-      { id: 'contact', title: '連絡帳メモ', updatedBy: 'たくみ', updatedAt: '1週間前' },
-    ],
-  },
-]
+/** 新規作成時の既定タイトル（DB 側の default '無題' と揃えている） */
+export const DEFAULT_PAGE_TITLE = '無題'
+export const DEFAULT_GROUP_TITLE = '無題のグループ'
+
+/**
+ * updated_by は uuid のみを持ち、表示名を引ける profiles テーブルがまだ無い。
+ * 自分の更新なら自分の名前、それ以外は「パートナー」と表示する。
+ */
+export function resolveUserName(
+  userId: string | null,
+  currentUser: { id: string; name: string } | null,
+): string {
+  if (!userId) return '不明'
+  if (currentUser && userId === currentUser.id) return currentUser.name
+  return 'パートナー'
+}
+
+export function formatRelativeTime(iso: string | null): string {
+  if (!iso) return '-'
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return '-'
+
+  const diffSec = Math.floor((Date.now() - then) / 1000)
+  if (diffSec < 60) return 'たった今'
+  if (diffSec < 60 * 60) return `${Math.floor(diffSec / 60)}分前`
+  if (diffSec < 60 * 60 * 24) return `${Math.floor(diffSec / 3600)}時間前`
+  if (diffSec < 60 * 60 * 24 * 7) return `${Math.floor(diffSec / 86400)}日前`
+
+  return new Date(then).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' })
+}
