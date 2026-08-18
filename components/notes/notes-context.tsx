@@ -1,6 +1,8 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import type { Block, PartialBlock } from '@blocknote/core'
+import { usePageContent } from '@/hooks/use-page-content'
 import {
   DEFAULT_GROUP_TITLE,
   DEFAULT_PAGE_TITLE,
@@ -36,6 +38,11 @@ type NotesContextValue = {
   loading: boolean
   error: string | null
   currentUser: CurrentUser | null
+  /** 本文の読み込みが済んでいるページ id。エディタの key と出し分けに使う */
+  contentPageId: string | null
+  /** BlockNote の initialContent。null なら空ドキュメント */
+  initialContent: PartialBlock[] | null
+  handleContentChange: (blocks: Block[]) => void
   setDrawerOpen: (open: boolean) => void
   setCollapsed: (collapsed: boolean) => void
   selectPage: (id: string) => void
@@ -72,7 +79,17 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
 
-  const saving = pending > 0
+  // 本文の読み込み / 保存。保存中・エラーはサイドバー操作と同じ表示に合流させる
+  const {
+    contentPageId,
+    initialContent,
+    contentStatus,
+    contentError,
+    handleContentChange,
+    dismissContentError,
+  } = usePageContent(activePageId, currentUser?.id ?? null)
+
+  const saving = pending > 0 || contentStatus === 'saving'
   const activePage = findPage(groups, activePageId)
 
   // 初回ロード: ログインユーザーと pages ツリーを取得する
@@ -274,8 +291,11 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     collapsed,
     saving,
     loading,
-    error,
+    error: error ?? contentError,
     currentUser,
+    contentPageId,
+    initialContent,
+    handleContentChange,
     setDrawerOpen,
     setCollapsed,
     selectPage,
@@ -286,7 +306,10 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     removePage,
     commitEdit,
     cancelEdit,
-    dismissError: () => setError(null),
+    dismissError: () => {
+      setError(null)
+      dismissContentError()
+    },
   }
 
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>

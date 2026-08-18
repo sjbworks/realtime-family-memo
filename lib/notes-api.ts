@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
+import type { Block, PartialBlock } from '@blocknote/core'
 import type { Group, Page } from '@/lib/notes-data'
 
 /**
@@ -79,6 +80,41 @@ export async function updatePageTitle(id: string, title: string, userId: string)
   const { error } = await supabase
     .from('pages')
     .update({ title, updated_by: userId })
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+/**
+ * pages.content(jsonb) は BlockNote のブロック配列をそのまま入れている。
+ * 本文はサイドバーのツリーとは別に、開いたページの分だけ都度読む。
+ */
+export async function fetchPageContent(id: string): Promise<PartialBlock[] | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('pages')
+    .select('content')
+    .eq('id', id)
+    .single()
+
+  if (error) throw error
+
+  // 未編集のページは null または [] なので、空ドキュメント扱いの null に寄せる
+  const content = (data as { content: unknown } | null)?.content
+  if (!Array.isArray(content) || content.length === 0) return null
+  return content as PartialBlock[]
+}
+
+/** 本文の保存。競合解決はせず last-write-wins（後から書いた側が勝つ） */
+export async function updatePageContent(
+  id: string,
+  content: Block[],
+  userId: string,
+): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('pages')
+    .update({ content, updated_by: userId })
     .eq('id', id)
 
   if (error) throw error
