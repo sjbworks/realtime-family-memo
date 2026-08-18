@@ -33,9 +33,9 @@ Two routes:
 - `app/page.tsx` — login screen (`components/login-form.tsx`).
 - `app/notes/page.tsx` — the main app, wraps `<NotesApp>` in `<NotesProvider>`.
 
-**One DB table backs the sidebar tree.** `public.pages` is self-referencing: a row with `parent_id IS NULL` is a _group_ (folder), a row with `parent_id` set is a _page_ inside it. Columns: `id`, `parent_id`, `title`, `content` (jsonb, unused so far), `position`, `created_by`/`updated_by` (→ `auth.users`), `created_at`/`updated_at`. RLS grants full access to any logged-in user (`auth.uid() IS NOT NULL`) — the app is invite-only for two people, so there is no per-workspace scoping. Ordering is `position` then `created_at`.
+**One DB table backs the sidebar tree.** `public.pages` is self-referencing: a row with `parent_id IS NULL` is a _group_ (folder), a row with `parent_id` set is a _page_ inside it. Columns: `id`, `parent_id`, `title`, `content` (jsonb, BlockNote のブロック配列), `position`, `created_by`/`updated_by` (→ `auth.users`), `created_at`/`updated_at`. RLS grants full access to any logged-in user (`auth.uid() IS NOT NULL`) — the app is invite-only for two people, so there is no per-workspace scoping. Ordering is `position` then `created_at`.
 
-**All DB access goes through `lib/notes-api.ts`** (browser Supabase client): `fetchPageRows`, `insertPageRow`, `updatePageTitle`, `deletePageRow`, `getCurrentUser`, plus `buildTree()` which folds the flat rows into the 2-level `Group[]` the sidebar renders. Deeper nesting is dropped by `buildTree` — the sidebar only shows two levels.
+**All DB access goes through `lib/notes-api.ts`** (browser Supabase client): `fetchPageRows`, `insertPageRow`, `updatePageTitle`, `deletePageRow`, `getCurrentUser`, `fetchPageContent`/`updatePageContent` (本文 jsonb; ツリーとは別に開いているページの分だけ読む), plus `buildTree()` which folds the flat rows into the 2-level `Group[]` the sidebar renders. Deeper nesting is dropped by `buildTree` — the sidebar only shows two levels.
 
 **State lives in one client-side context.** `components/notes/notes-context.tsx` (`NotesProvider` / `useNotes`) owns the tree, active selection, sidebar/drawer state, inline-editing state, and the loading/saving/error flags. All notes UI reads and mutates through `useNotes()`. Conventions to preserve when adding operations:
 
@@ -44,11 +44,19 @@ Two routes:
 
 Still mock, be aware when changing it:
 
-- Page body content in `components/notes/note-editor.tsx` comes from a hardcoded `sampleContent` map keyed by page id (so DB-created pages fall back to `defaultContent`); the editor renders a static block-type union and title is a bare `contentEditable` (edits are not captured, and `content` is never written).
+- The page **title** in `components/notes/note-editor.tsx` is still a bare `contentEditable` — edits there are not captured and never saved. (The body is real: see the BlockNote section below.)
 - `users` in `lib/notes-data.ts` is still dummy — used by the avatar and the sidebar user switcher. There is no `profiles` table, so `updated_by` (uuid) is rendered via `resolveUserName()`: your own name, otherwise "パートナー".
 - Partner presence ("〜さんも開いています") is faked via a hardcoded `partnerViewing` Set in `notes-app.tsx`.
 
-**Real-time is partially scaffolded but unused.** `hooks/usePagePresence.ts` implements Supabase Realtime presence (channel `page:${pageId}`, tracks `{userId, userName}`, returns other editors) but is **not yet consumed** by any component. Wiring it into `NotesApp`/context is the natural next step to replace the faked presence. The sidebar tree is also not subscribed to Postgres changes, so a partner's create/rename/delete only appears after reload. `@tiptap/starter-kit` is installed but the editor does not use it yet.
+**Page body is BlockNote.** `components/notes/page-block-editor.tsx` wraps `@blocknote/shadcn`'s `BlockNoteView`; `note-editor.tsx` loads it via `next/dynamic({ ssr: false })` because BlockNote is ProseMirror-based and cannot render on the server. Rules to keep in mind:
+
+- `useCreateBlockNote` builds the editor **once per mount** (its `deps` default to `[]`), so changing `initialContent` does nothing. Switching pages must remount via `key={page.id}` — that is why `usePageContent` reports `contentPageId` alongside the content.
+- `hooks/use-page-content.ts` owns load + save: it fetches `content` for the open page, debounces edits by 800 ms, and writes last-write-wins. It flushes pending edits on page switch/unmount (so a fast switch does not drop the last keystrokes) and warns on `beforeunload` while a write is still queued. It is called from `NotesProvider`, so its saving/error state merges into the existing `saving` indicator and error banner.
+- The editor is not rendered until the page's content has loaded, so a failed read can never overwrite a real page with an empty document.
+- BlockNote's CSS is imported in `app/globals.css` and its `--bn-colors-*` variables are remapped to the shadcn tokens there. `@source "../node_modules/@blocknote/shadcn/dist/blocknote-shadcn.js"` is required — BlockNote ships Tailwind class names inside its dist JS, which Tailwind would otherwise not scan. BlockNote's stylesheet is outside Tailwind's cascade layers, so `.bn-*` rules beat Tailwind utilities; override them with `.bn-*` selectors rather than classes.
+- `pnpm.overrides` pins `@tiptap/core`/`@tiptap/pm` to 3.30.1: `@tiptap/react` (pulled in by `@blocknote/react`) pins its peers exactly, and a stale 3.29.2 resolution breaks the build with a missing `createWidgetDecoration` export.
+
+**Real-time is partially scaffolded but unused.** `hooks/usePagePresence.ts` implements Supabase Realtime presence (channel `page:${pageId}`, tracks `{userId, userName}`, returns other editors) but is **not yet consumed** by any component. Wiring it into `NotesApp`/context is the natural next step to replace the faked presence. The sidebar tree is also not subscribed to Postgres changes, so a partner's create/rename/delete only appears after reload.
 
 ## Conventions
 
