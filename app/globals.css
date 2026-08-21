@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@blocknote/shadcn/style.css";
+
+/* @blocknote/shadcn の UI は Tailwind のクラスを dist の JS に埋め込んで配布している。
+   node_modules は既定でスキャン対象外なので、明示的に読ませないと
+   ツールバーやスラッシュメニューのスタイルが生成されない。 */
+@source "../node_modules/@blocknote/shadcn/dist/blocknote-shadcn.js";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -167,4 +173,59 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ---------------------------------------------------------------- BlockNote
+
+   BlockNote の配色は `.bn-root` に置かれた --bn-colors-* で決まる。既定値は
+   固定の hex なので、shadcn のトークンに差し替えてこのアプリのテーマに乗せる。
+
+   セレクタに [data-color-scheme] 付きを併記しているのは、BlockNote 側の
+   `.bn-root[data-color-scheme=dark]`（詳細度 0,2,0）に負けないようにするため。
+   var() が指す --foreground などは .dark / prefers-color-scheme で切り替わるので、
+   ここではライト・ダークで同じ対応表を書けばよい。 */
+.bn-root,
+.bn-root[data-color-scheme="light"],
+.bn-root[data-color-scheme="dark"] {
+  --bn-font-family: inherit;
+  --bn-border-radius: var(--radius);
+
+  --bn-colors-editor-text: var(--foreground);
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-text: var(--popover-foreground);
+  --bn-colors-menu-background: var(--popover);
+  --bn-colors-tooltip-text: var(--popover-foreground);
+  --bn-colors-tooltip-background: var(--popover);
+  --bn-colors-hovered-text: var(--accent-foreground);
+  --bn-colors-hovered-background: var(--accent);
+  --bn-colors-selected-text: var(--accent-foreground);
+  --bn-colors-selected-background: var(--accent);
+  --bn-colors-disabled-text: var(--muted-foreground);
+  --bn-colors-disabled-background: var(--muted);
+  --bn-colors-border: var(--border);
+  --bn-colors-shadow: var(--border);
+  --bn-colors-side-menu: var(--muted-foreground);
+}
+
+/* v0 のデザインに寄せた本文まわり。BlockNote の CSS はレイヤー外なので、
+   .bn-* を狙う指定は Tailwind のユーティリティより強い。ここで直接上書きする。 */
+.bn-page-editor .bn-editor {
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+/* 見出しは BlockNote 既定（h1 3em / h2 2em / h3 1.3em）だと本文 15px に対して大きい。
+   font-size を直接上書きすると h3 以降の既定値と大小が逆転するので、
+   BlockNote が font-size: var(--level) で使っている --level 側を差し替える。
+   本文 15px 基準で h1 24px / h2 18px / h3 15.75px。h4 以降は既定（1em 以下）のまま。 */
+.bn-page-editor .bn-block-content[data-content-type="heading"][data-level="1"] {
+  --level: 1.6em;
+}
+
+.bn-page-editor .bn-block-content[data-content-type="heading"][data-level="2"] {
+  --level: 1.2em;
+}
+
+.bn-page-editor .bn-block-content[data-content-type="heading"][data-level="3"] {
+  --level: 1.05em;
 }

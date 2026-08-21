@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
-import type { Group, Page } from '@/lib/notes-data'
+import type { Block, PartialBlock } from '@blocknote/core'
+import type { Group, Page, Profile } from '@/lib/notes-data'
 
 /**
  * public.pages の行。parent_id が null ならサイドバーのグループ、
@@ -37,6 +38,21 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     'ユーザー'
 
   return { id: user.id, name }
+}
+
+/**
+ * 表示名の一覧。auth.users はクライアントから読めないので public.profiles を引く。
+ * 行はトリガで作られるため、アプリ側で INSERT することはない。
+ */
+export async function fetchProfiles(): Promise<Profile[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase.from('profiles').select('id, display_name')
+
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    name: (row.display_name as string) || 'ユーザー',
+  }))
 }
 
 export async function fetchPageRows(): Promise<PageRow[]> {
@@ -79,6 +95,41 @@ export async function updatePageTitle(id: string, title: string, userId: string)
   const { error } = await supabase
     .from('pages')
     .update({ title, updated_by: userId })
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+/**
+ * pages.content(jsonb) は BlockNote のブロック配列をそのまま入れている。
+ * 本文はサイドバーのツリーとは別に、開いたページの分だけ都度読む。
+ */
+export async function fetchPageContent(id: string): Promise<PartialBlock[] | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('pages')
+    .select('content')
+    .eq('id', id)
+    .single()
+
+  if (error) throw error
+
+  // 未編集のページは null または [] なので、空ドキュメント扱いの null に寄せる
+  const content = (data as { content: unknown } | null)?.content
+  if (!Array.isArray(content) || content.length === 0) return null
+  return content as PartialBlock[]
+}
+
+/** 本文の保存。競合解決はせず last-write-wins（後から書いた側が勝つ） */
+export async function updatePageContent(
+  id: string,
+  content: Block[],
+  userId: string,
+): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('pages')
+    .update({ content, updated_by: userId })
     .eq('id', id)
 
   if (error) throw error

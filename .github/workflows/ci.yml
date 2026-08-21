@@ -63,8 +63,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: "/review ${{ github.event.pull_request.number }}"
-          # 差分が大きい PR では 20 ターンで打ち切られてレビューが0件になるため引き上げ
-          claude_args: "--max-turns 50"
+          claude_args: "--max-turns 100"
           show_full_output: true
           settings: |
             {
