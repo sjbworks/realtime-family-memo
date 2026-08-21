@@ -8,11 +8,13 @@ import {
   DEFAULT_PAGE_TITLE,
   type Group,
   type Page,
+  type Profile,
 } from '@/lib/notes-data'
 import {
   buildTree,
   deletePageRow,
   fetchPageRows,
+  fetchProfiles,
   getCurrentUser,
   insertPageRow,
   toErrorMessage,
@@ -38,11 +40,17 @@ type NotesContextValue = {
   loading: boolean
   error: string | null
   currentUser: CurrentUser | null
+  /** updated_by の uuid → 表示名。resolveUserName() に渡す */
+  profiles: Map<string, Profile>
+  /** 自分以外のユーザー。招待制の 2 人なので実質パートナー 1 人 */
+  partner: Profile | null
   /** 本文の読み込みが済んでいるページ id。エディタの key と出し分けに使う */
   contentPageId: string | null
   /** BlockNote の initialContent。null なら空ドキュメント */
   initialContent: PartialBlock[] | null
   handleContentChange: (blocks: Block[]) => void
+  /** ページ本文の見出しからの改名。空文字なら既定タイトルに戻す */
+  renamePage: (id: string, title: string) => void
   setDrawerOpen: (open: boolean) => void
   setCollapsed: (collapsed: boolean) => void
   selectPage: (id: string) => void
@@ -78,6 +86,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [profileList, setProfileList] = useState<Profile[]>([])
 
   // 本文の読み込み / 保存。保存中・エラーはサイドバー操作と同じ表示に合流させる
   const {
@@ -91,6 +100,8 @@ export function NotesProvider({ children }: { children: ReactNode }) {
 
   const saving = pending > 0 || contentStatus === 'saving'
   const activePage = findPage(groups, activePageId)
+  const profiles = new Map(profileList.map((p) => [p.id, p]))
+  const partner = profileList.find((p) => p.id !== currentUser?.id) ?? null
 
   // 初回ロード: ログインユーザーと pages ツリーを取得する
   useEffect(() => {
@@ -98,11 +109,18 @@ export function NotesProvider({ children }: { children: ReactNode }) {
 
     async function load() {
       try {
-        const [user, rows] = await Promise.all([getCurrentUser(), fetchPageRows()])
+        const [user, rows, people] = await Promise.all([
+          getCurrentUser(),
+          fetchPageRows(),
+          // profiles をまだ作っていない環境でもノート自体は使えるようにする。
+          // 引けなければ resolveUserName() が「パートナー」にフォールバックする。
+          fetchProfiles().catch(() => [] as Profile[]),
+        ])
         if (cancelled) return
 
         const tree = buildTree(rows)
         setCurrentUser(user)
+        setProfileList(people)
         setGroups(tree)
         setOpenGroups(Object.fromEntries(tree.map((g) => [g.id, true])))
         setActivePageId(tree.flatMap((g) => g.pages)[0]?.id ?? null)
@@ -179,26 +197,33 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     const target = editing
     setEditing(null)
 
-    const trimmed = value.trim()
-    const title =
-      trimmed || (target.kind === 'group' ? DEFAULT_GROUP_TITLE : DEFAULT_PAGE_TITLE)
-
     if (target.isNew) {
-      createNode(target, title)
+      createNode(target, resolveTitle(value, target.kind))
       return
     }
 
-    const before = findTitle(groups, target.id, target.kind)
+    applyRename(target.id, target.kind, value)
+  }
+
+  /**
+   * 既存の行の名前を変更する。サイドバーのインライン編集と、
+   * ページ本文の見出し（note-editor.tsx）の両方から呼ばれる。
+   */
+  function applyRename(id: string, kind: EditKind, value: string) {
+    if (isDraftId(id)) return
+
+    const title = resolveTitle(value, kind)
+    const before = findTitle(groups, id, kind)
     if (before === null || before === title) return
 
-    setGroups((prev) => renameNode(prev, target.id, target.kind, title))
+    setGroups((prev) => renameNode(prev, id, kind, title))
     void runSave(
       async () => {
         if (!currentUser) throw new Error('ログイン情報を取得できませんでした')
-        await updatePageTitle(target.id, title, currentUser.id)
+        await updatePageTitle(id, title, currentUser.id)
       },
       '名前の変更を保存できませんでした',
-      () => setGroups((prev) => renameNode(prev, target.id, target.kind, before)),
+      () => setGroups((prev) => renameNode(prev, id, kind, before)),
     )
   }
 
@@ -293,9 +318,12 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     loading,
     error: error ?? contentError,
     currentUser,
+    profiles,
+    partner,
     contentPageId,
     initialContent,
     handleContentChange,
+    renamePage: (id: string, title: string) => applyRename(id, 'page', title),
     setDrawerOpen,
     setCollapsed,
     selectPage,
@@ -316,6 +344,11 @@ export function NotesProvider({ children }: { children: ReactNode }) {
 }
 
 // ------------------------------------------------------------------ helpers
+
+/** 空欄のまま確定されたときは DB 側の default と揃えた既定タイトルにする */
+function resolveTitle(value: string, kind: EditKind): string {
+  return value.trim() || (kind === 'group' ? DEFAULT_GROUP_TITLE : DEFAULT_PAGE_TITLE)
+}
 
 function findPage(groups: Group[], pageId: string | null): Page | null {
   if (!pageId) return null

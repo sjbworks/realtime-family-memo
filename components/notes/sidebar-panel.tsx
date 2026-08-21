@@ -1,8 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Check, ChevronsUpDown, NotebookPen, Plus, PanelLeftClose } from 'lucide-react'
-import { users } from '@/lib/notes-data'
+import { NotebookPen, Plus, PanelLeftClose } from 'lucide-react'
+import { avatarColor, initialOf } from '@/lib/notes-data'
 import { SidebarContent } from '@/components/notes/sidebar-content'
 import { useNotes } from '@/components/notes/notes-context'
 
@@ -12,63 +11,33 @@ type Props = {
 }
 
 export function SidebarPanel({ onCollapse, showCollapse }: Props) {
-  const { addGroup } = useNotes()
-  const [currentUser, setCurrentUser] = useState(users[0])
-  const [switcherOpen, setSwitcherOpen] = useState(false)
+  const { addGroup, currentUser } = useNotes()
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      {/* Header: app name + user switcher */}
+      {/* Header: app name + logged-in user.
+          v0 の「ユーザー切り替え」ドロップダウンはダミーデータ前提のものだった。
+          実際の認証ではログイン中のアカウントは固定なので、表示のみにしている。 */}
       <div className="flex items-center gap-2 border-b border-sidebar-border px-3 py-2.5">
         <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <NotebookPen className="size-4" />
         </div>
-        <div className="relative min-w-0 flex-1">
-          <button
-            type="button"
-            onClick={() => setSwitcherOpen((o) => !o)}
-            className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-sidebar-accent"
-            aria-expanded={switcherOpen}
-          >
+        <div className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1">
+          {currentUser && (
             <span
-              className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${currentUser.color}`}
+              className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${avatarColor(true)}`}
             >
-              {currentUser.initial}
+              {initialOf(currentUser.name)}
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold leading-tight">
-                ふたりノート
-              </span>
-              <span className="block truncate text-xs text-muted-foreground leading-tight">
-                {currentUser.name}
-              </span>
-            </span>
-            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
-          </button>
-
-          {switcherOpen && (
-            <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-md border border-sidebar-border bg-popover p-1 shadow-md">
-              {users.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => {
-                    setCurrentUser(u)
-                    setSwitcherOpen(false)
-                  }}
-                  className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <span
-                    className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${u.color}`}
-                  >
-                    {u.initial}
-                  </span>
-                  <span className="flex-1 text-popover-foreground">{u.name}</span>
-                  {u.id === currentUser.id && <Check className="size-4 text-primary" />}
-                </button>
-              ))}
-            </div>
           )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold leading-tight">
+              ふたりノート
+            </span>
+            <span className="block truncate text-xs text-muted-foreground leading-tight">
+              {currentUser?.name ?? '読み込み中...'}
+            </span>
+          </span>
         </div>
 
         {showCollapse && (

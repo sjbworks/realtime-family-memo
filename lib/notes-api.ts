@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import type { Block, PartialBlock } from '@blocknote/core'
-import type { Group, Page } from '@/lib/notes-data'
+import type { Group, Page, Profile } from '@/lib/notes-data'
 
 /**
  * public.pages の行。parent_id が null ならサイドバーのグループ、
@@ -38,6 +38,21 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     'ユーザー'
 
   return { id: user.id, name }
+}
+
+/**
+ * 表示名の一覧。auth.users はクライアントから読めないので public.profiles を引く。
+ * 行はトリガで作られるため、アプリ側で INSERT することはない。
+ */
+export async function fetchProfiles(): Promise<Profile[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase.from('profiles').select('id, display_name')
+
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    name: (row.display_name as string) || 'ユーザー',
+  }))
 }
 
 export async function fetchPageRows(): Promise<PageRow[]> {

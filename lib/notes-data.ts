@@ -1,8 +1,7 @@
-export type User = {
+/** public.profiles の 1 行。表示名を uuid から引くために使う */
+export type Profile = {
   id: string
   name: string
-  initial: string
-  color: string
 }
 
 /**
@@ -27,26 +26,36 @@ export type Group = {
   pages: Page[]
 }
 
-export const users: User[] = [
-  { id: 'haruka', name: 'はるか', initial: 'は', color: 'bg-primary text-primary-foreground' },
-  { id: 'takumi', name: 'たくみ', initial: 'た', color: 'bg-presence text-primary-foreground' },
-]
+/** アバターに出す 1 文字。サロゲートペアで割れないよう配列に展開して取る */
+export function initialOf(name: string): string {
+  return [...name.trim()][0] ?? '？'
+}
+
+/**
+ * アバターの色。ユーザーは 2 人だけなので DB に色を持たせず、
+ * 自分＝primary / 相手＝presence に固定する（presence バナーの配色と揃う）。
+ */
+export function avatarColor(isSelf: boolean): string {
+  return isSelf ? 'bg-primary text-primary-foreground' : 'bg-presence text-primary-foreground'
+}
 
 /** 新規作成時の既定タイトル（DB 側の default '無題' と揃えている） */
 export const DEFAULT_PAGE_TITLE = '無題'
 export const DEFAULT_GROUP_TITLE = '無題のグループ'
 
 /**
- * updated_by は uuid のみを持ち、表示名を引ける profiles テーブルがまだ無い。
- * 自分の更新なら自分の名前、それ以外は「パートナー」と表示する。
+ * updated_by の uuid を表示名にする。
+ * profiles がまだ無い / 行が欠けている環境でも壊れないよう、
+ * 引けなかったときは従来どおり「パートナー」にフォールバックする。
  */
 export function resolveUserName(
   userId: string | null,
-  currentUser: { id: string; name: string } | null,
+  profiles: Map<string, Profile>,
+  currentUser: Profile | null,
 ): string {
   if (!userId) return '不明'
   if (currentUser && userId === currentUser.id) return currentUser.name
-  return 'パートナー'
+  return profiles.get(userId)?.name ?? 'パートナー'
 }
 
 export function formatRelativeTime(iso: string | null): string {
