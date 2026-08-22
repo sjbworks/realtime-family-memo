@@ -1,7 +1,7 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@import "@blocknote/shadcn/style.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@blocknote/shadcn/style.css';
 
 /* @blocknote/shadcn の UI は Tailwind のクラスを dist の JS に埋め込んで配布している。
    node_modules は既定でスキャン対象外なので、明示的に読ませないと
@@ -185,8 +185,8 @@
    var() が指す --foreground などは .dark / prefers-color-scheme で切り替わるので、
    ここではライト・ダークで同じ対応表を書けばよい。 */
 .bn-root,
-.bn-root[data-color-scheme="light"],
-.bn-root[data-color-scheme="dark"] {
+.bn-root[data-color-scheme='light'],
+.bn-root[data-color-scheme='dark'] {
   --bn-font-family: inherit;
   --bn-border-radius: var(--radius);
 
@@ -218,14 +218,14 @@
    font-size を直接上書きすると h3 以降の既定値と大小が逆転するので、
    BlockNote が font-size: var(--level) で使っている --level 側を差し替える。
    本文 15px 基準で h1 24px / h2 18px / h3 15.75px。h4 以降は既定（1em 以下）のまま。 */
-.bn-page-editor .bn-block-content[data-content-type="heading"][data-level="1"] {
+.bn-page-editor .bn-block-content[data-content-type='heading'][data-level='1'] {
   --level: 1.6em;
 }
 
-.bn-page-editor .bn-block-content[data-content-type="heading"][data-level="2"] {
+.bn-page-editor .bn-block-content[data-content-type='heading'][data-level='2'] {
   --level: 1.2em;
 }
 
-.bn-page-editor .bn-block-content[data-content-type="heading"][data-level="3"] {
+.bn-page-editor .bn-block-content[data-content-type='heading'][data-level='3'] {
   --level: 1.05em;
 }

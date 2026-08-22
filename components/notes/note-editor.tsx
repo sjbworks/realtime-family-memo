@@ -2,19 +2,14 @@
 
 import dynamic from 'next/dynamic'
 import { useEffect, useRef, type ClipboardEvent, type KeyboardEvent } from 'react'
-import {
-  DEFAULT_PAGE_TITLE,
-  formatRelativeTime,
-  resolveUserName,
-  type Page,
-} from '@/lib/notes-data'
+import { DEFAULT_PAGE_TITLE, formatRelativeTime, resolveUserName, type Page } from '@/lib/notes-data'
 import { useNotes } from '@/components/notes/notes-context'
 
 // BlockNote は ProseMirror ベースで SSR できないうえ重いので、クライアント側で遅延読み込みする
-const PageBlockEditor = dynamic(
-  () => import('@/components/notes/page-block-editor').then((m) => m.PageBlockEditor),
-  { ssr: false, loading: () => <EditorSkeleton /> },
-)
+const PageBlockEditor = dynamic(() => import('@/components/notes/page-block-editor').then((m) => m.PageBlockEditor), {
+  ssr: false,
+  loading: () => <EditorSkeleton />,
+})
 
 function EditorSkeleton() {
   return (
@@ -113,18 +108,13 @@ export function NoteEditor({ page, currentUser }: Props) {
 
       {/* Meta */}
       <p className="mt-2 text-xs text-muted-foreground">
-        最終更新: {resolveUserName(page.updatedById, profiles, currentUser)} ・{' '}
-        {formatRelativeTime(page.updatedAt)}
+        最終更新: {resolveUserName(page.updatedById, profiles, currentUser)} ・ {formatRelativeTime(page.updatedAt)}
       </p>
 
       {/* Body */}
       <div className="mt-6">
         {contentReady ? (
-          <PageBlockEditor
-            key={page.id}
-            initialContent={initialContent}
-            onChange={handleContentChange}
-          />
+          <PageBlockEditor key={page.id} initialContent={initialContent} onChange={handleContentChange} />
         ) : (
           <EditorSkeleton />
         )}

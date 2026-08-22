@@ -1,23 +1,14 @@
-"use client";
+'use client'
 
-import {
-  AlertCircle,
-  Check,
-  Cloud,
-  Loader2,
-  LogOut,
-  Menu,
-  PanelLeftOpen,
-  X,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
-import { avatarColor, initialOf } from "@/lib/notes-data";
-import { SidebarPanel } from "@/components/notes/sidebar-panel";
-import { NoteEditor } from "@/components/notes/note-editor";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { useNotes } from "@/components/notes/notes-context";
-import { createClient } from "@/lib/supabase/client";
-import { usePagePresence } from "@/hooks/usePagePresence";
+import { AlertCircle, Check, Cloud, Loader2, LogOut, Menu, PanelLeftOpen, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { avatarColor, initialOf } from '@/lib/notes-data'
+import { SidebarPanel } from '@/components/notes/sidebar-panel'
+import { NoteEditor } from '@/components/notes/note-editor'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { useNotes } from '@/components/notes/notes-context'
+import { createClient } from '@/lib/supabase/client'
+import { usePagePresence } from '@/hooks/usePagePresence'
 
 export function NotesApp() {
   const {
@@ -32,21 +23,21 @@ export function NotesApp() {
     dismissError,
     setDrawerOpen,
     setCollapsed,
-  } = useNotes();
+  } = useNotes()
 
-  const router = useRouter();
+  const router = useRouter()
   // presence の payload に表示名が入っているので、profiles を引かなくても名前を出せる
   const otherEditors = usePagePresence(
     activePageId,
-    currentUser ? { userId: currentUser.id, userName: currentUser.name } : null,
-  );
-  const viewer = otherEditors[0] ?? null;
+    currentUser ? { userId: currentUser.id, userName: currentUser.name } : null
+  )
+  const viewer = otherEditors[0] ?? null
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.replace("/");
-    router.refresh();
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.replace('/')
+    router.refresh()
   }
 
   return (
@@ -110,10 +101,10 @@ export function NotesApp() {
           {/* center title (mobile) / breadcrumb (desktop) */}
           <div className="min-w-0 flex-1 text-center md:text-left">
             <span className="block truncate text-sm font-medium text-foreground md:hidden">
-              {activePage?.title ?? "ふたりノート"}
+              {activePage?.title ?? 'ふたりノート'}
             </span>
             <span className="hidden truncate text-sm text-muted-foreground md:block">
-              マイページ{activePage ? ` / ${activePage.title}` : ""}
+              マイページ{activePage ? ` / ${activePage.title}` : ''}
             </span>
           </div>
 
@@ -189,9 +180,7 @@ export function NotesApp() {
                   {initialOf(viewer.userName)}
                 </span>
                 <Cloud className="size-3.5 shrink-0 text-presence" />
-                <span className="truncate">
-                  {viewer.userName}さんもこのページを開いています
-                </span>
+                <span className="truncate">{viewer.userName}さんもこのページを開いています</span>
               </div>
             </div>
           )}
@@ -200,13 +189,11 @@ export function NotesApp() {
             <NoteEditor page={activePage} currentUser={currentUser} />
           ) : (
             <div className="mx-auto w-full max-w-2xl px-5 py-10 text-sm text-muted-foreground md:px-8">
-              {loading
-                ? "読み込み中..."
-                : "ページがありません。サイドバーの ＋ から作成してください。"}
+              {loading ? '読み込み中...' : 'ページがありません。サイドバーの ＋ から作成してください。'}
             </div>
           )}
         </main>
       </div>
     </div>
-  );
+  )
 }

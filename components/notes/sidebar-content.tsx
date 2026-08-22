@@ -1,14 +1,6 @@
 'use client'
 
-import {
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Folder,
-  GripVertical,
-  Plus,
-  Search,
-} from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, Folder, GripVertical, Plus, Search } from 'lucide-react'
 import { useNotes } from '@/components/notes/notes-context'
 import { InlineEdit } from '@/components/notes/inline-edit'
 import { RowMenu } from '@/components/notes/row-menu'
@@ -70,11 +62,7 @@ export function SidebarContent() {
                 aria-expanded={openGroups[group.id]}
               >
                 <span className="text-muted-foreground">
-                  {openGroups[group.id] ? (
-                    <ChevronDown className="size-4" />
-                  ) : (
-                    <ChevronRight className="size-4" />
-                  )}
+                  {openGroups[group.id] ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                 </span>
                 <Folder className="size-4 shrink-0 text-accent-foreground" />
                 {editingId === group.id ? (

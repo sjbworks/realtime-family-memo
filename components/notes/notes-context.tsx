@@ -3,13 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Block, PartialBlock } from '@blocknote/core'
 import { usePageContent } from '@/hooks/use-page-content'
-import {
-  DEFAULT_GROUP_TITLE,
-  DEFAULT_PAGE_TITLE,
-  type Group,
-  type Page,
-  type Profile,
-} from '@/lib/notes-data'
+import { DEFAULT_GROUP_TITLE, DEFAULT_PAGE_TITLE, type Group, type Page, type Profile } from '@/lib/notes-data'
 import {
   buildTree,
   deletePageRow,
@@ -89,14 +83,8 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   const [profileList, setProfileList] = useState<Profile[]>([])
 
   // 本文の読み込み / 保存。保存中・エラーはサイドバー操作と同じ表示に合流させる
-  const {
-    contentPageId,
-    initialContent,
-    contentStatus,
-    contentError,
-    handleContentChange,
-    dismissContentError,
-  } = usePageContent(activePageId, currentUser?.id ?? null)
+  const { contentPageId, initialContent, contentStatus, contentError, handleContentChange, dismissContentError } =
+    usePageContent(activePageId, currentUser?.id ?? null)
 
   const saving = pending > 0 || contentStatus === 'saving'
   const activePage = findPage(groups, activePageId)
@@ -177,13 +165,10 @@ export function NotesProvider({ children }: { children: ReactNode }) {
         g.id === groupId
           ? {
               ...g,
-              pages: [
-                ...g.pages,
-                { id, groupId, title: '', updatedById: currentUser?.id ?? null, updatedAt: null },
-              ],
+              pages: [...g.pages, { id, groupId, title: '', updatedById: currentUser?.id ?? null, updatedAt: null }],
             }
-          : g,
-      ),
+          : g
+      )
     )
     setEditing({ id, kind: 'page', isNew: true })
   }
@@ -223,7 +208,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
         await updatePageTitle(id, title, currentUser.id)
       },
       '名前の変更を保存できませんでした',
-      () => setGroups((prev) => renameNode(prev, id, kind, before)),
+      () => setGroups((prev) => renameNode(prev, id, kind, before))
     )
   }
 
@@ -233,9 +218,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
 
     const groupId = target.kind === 'page' ? findGroupIdOfPage(groups, target.id) : null
     const position =
-      target.kind === 'group'
-        ? groups.length - 1
-        : (groups.find((g) => g.id === groupId)?.pages.length ?? 1) - 1
+      target.kind === 'group' ? groups.length - 1 : (groups.find((g) => g.id === groupId)?.pages.length ?? 1) - 1
 
     void runSave(
       async () => {
@@ -261,7 +244,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
         if (target.kind === 'page') selectPage(row.id)
       },
       target.kind === 'group' ? 'グループを作成できませんでした' : 'ページを作成できませんでした',
-      () => removeDraft(target),
+      () => removeDraft(target)
     )
   }
 
@@ -274,13 +257,9 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   function removeDraft(target: NonNullable<Editing>) {
     if (target.kind === 'group') {
       setGroups((prev) => prev.filter((g) => g.id !== target.id))
-      setOpenGroups((prev) =>
-        Object.fromEntries(Object.entries(prev).filter(([id]) => id !== target.id)),
-      )
+      setOpenGroups((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => id !== target.id)))
     } else {
-      setGroups((prev) =>
-        prev.map((g) => ({ ...g, pages: g.pages.filter((p) => p.id !== target.id) })),
-      )
+      setGroups((prev) => prev.map((g) => ({ ...g, pages: g.pages.filter((p) => p.id !== target.id) })))
     }
   }
 
@@ -294,16 +273,18 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     const snapshot = groups
     const previousActiveId = activePageId
 
-    setGroups((prev) =>
-      prev.map((g) => ({ ...g, pages: g.pages.filter((p) => p.id !== id) })),
-    )
+    setGroups((prev) => prev.map((g) => ({ ...g, pages: g.pages.filter((p) => p.id !== id) })))
     if (editing?.id === id) setEditing(null)
     if (activePageId === id) setActivePageId(neighborPageId(groups, id))
 
-    void runSave(() => deletePageRow(id), 'ページを削除できませんでした', () => {
-      setGroups(snapshot)
-      setActivePageId(previousActiveId)
-    })
+    void runSave(
+      () => deletePageRow(id),
+      'ページを削除できませんでした',
+      () => {
+        setGroups(snapshot)
+        setActivePageId(previousActiveId)
+      }
+    )
   }
 
   const value: NotesContextValue = {
@@ -383,7 +364,7 @@ function replaceDraft(groups: Group[], draftId: string, kind: EditKind, row: Pag
     return groups.map((g) =>
       g.id === draftId
         ? { ...g, id: row.id, name: row.title, pages: g.pages.map((p) => ({ ...p, groupId: row.id })) }
-        : g,
+        : g
     )
   }
   return groups.map((g) => ({

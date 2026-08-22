@@ -85,10 +85,7 @@ export function MfaVerifyForm() {
         </p>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-xl border border-border bg-card p-6 shadow-sm"
-      >
+      <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="code" className="text-sm font-medium text-foreground">
@@ -116,20 +113,11 @@ export function MfaVerifyForm() {
             </p>
           )}
 
-          <Button
-            type="submit"
-            disabled={!ready || loading || code.length !== 6}
-            className="mt-2 h-11 w-full"
-          >
+          <Button type="submit" disabled={!ready || loading || code.length !== 6} className="mt-2 h-11 w-full">
             {loading ? '確認中...' : '認証する'}
           </Button>
 
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={handleCancel}
-            className="h-9 w-full"
-          >
+          <Button type="button" variant="ghost" onClick={handleCancel} className="h-9 w-full">
             ログイン画面に戻る
           </Button>
         </div>

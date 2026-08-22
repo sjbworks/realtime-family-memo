@@ -89,9 +89,7 @@ export function MfaEnrollForm() {
         <div className="mb-4 flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <ShieldPlus className="size-6" />
         </div>
-        <h1 className="text-xl font-bold tracking-tight text-balance">
-          2段階認証の設定
-        </h1>
+        <h1 className="text-xl font-bold tracking-tight text-balance">2段階認証の設定</h1>
         <p className="mt-1.5 text-sm text-muted-foreground text-pretty">
           認証アプリ（Google Authenticator や 1Password など）で
           <br />
@@ -113,9 +111,7 @@ export function MfaEnrollForm() {
 
             {secret && (
               <div className="w-full text-center">
-                <p className="text-xs text-muted-foreground">
-                  QRを読み取れない場合はこのキーを手動入力
-                </p>
+                <p className="text-xs text-muted-foreground">QRを読み取れない場合はこのキーを手動入力</p>
                 <code className="mt-1 block break-all rounded-md bg-muted px-2 py-1.5 text-xs font-medium text-foreground">
                   {secret}
                 </code>
@@ -149,20 +145,11 @@ export function MfaEnrollForm() {
               </p>
             )}
 
-            <Button
-              type="submit"
-              disabled={!factorId || loading || code.length !== 6}
-              className="mt-2 h-11 w-full"
-            >
+            <Button type="submit" disabled={!factorId || loading || code.length !== 6} className="mt-2 h-11 w-full">
               {loading ? '確認中...' : '有効にする'}
             </Button>
 
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleCancel}
-              className="h-9 w-full"
-            >
+            <Button type="button" variant="ghost" onClick={handleCancel} className="h-9 w-full">
               ログイン画面に戻る
             </Button>
           </form>
