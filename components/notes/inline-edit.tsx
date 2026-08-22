@@ -20,19 +20,19 @@ export function InlineEdit({ initial, placeholder, onCommit, onCancel, className
     ref.current?.select()
   }, [])
 
-  function commit() {
+  const commit = () => {
     if (settled.current) return
     settled.current = true
     onCommit(ref.current?.value ?? '')
   }
 
-  function cancel() {
+  const cancel = () => {
     if (settled.current) return
     settled.current = true
     onCancel()
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     // respect IME composition (CJK input)
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Enter') {

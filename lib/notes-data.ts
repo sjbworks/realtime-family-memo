@@ -27,7 +27,7 @@ export type Group = {
 }
 
 /** アバターに出す 1 文字。サロゲートペアで割れないよう配列に展開して取る */
-export function initialOf(name: string): string {
+export const initialOf = (name: string): string => {
   return [...name.trim()][0] ?? '？'
 }
 
@@ -35,7 +35,7 @@ export function initialOf(name: string): string {
  * アバターの色。ユーザーは 2 人だけなので DB に色を持たせず、
  * 自分＝primary / 相手＝presence に固定する（presence バナーの配色と揃う）。
  */
-export function avatarColor(isSelf: boolean): string {
+export const avatarColor = (isSelf: boolean): string => {
   return isSelf ? 'bg-primary text-primary-foreground' : 'bg-presence text-primary-foreground'
 }
 
@@ -48,17 +48,17 @@ export const DEFAULT_GROUP_TITLE = '無題のグループ'
  * profiles がまだ無い / 行が欠けている環境でも壊れないよう、
  * 引けなかったときは従来どおり「パートナー」にフォールバックする。
  */
-export function resolveUserName(
+export const resolveUserName = (
   userId: string | null,
   profiles: Map<string, Profile>,
   currentUser: Profile | null
-): string {
+): string => {
   if (!userId) return '不明'
   if (currentUser && userId === currentUser.id) return currentUser.name
   return profiles.get(userId)?.name ?? 'パートナー'
 }
 
-export function formatRelativeTime(iso: string | null): string {
+export const formatRelativeTime = (iso: string | null): string => {
   if (!iso) return '-'
   const then = new Date(iso).getTime()
   if (Number.isNaN(then)) return '-'

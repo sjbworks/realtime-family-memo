@@ -33,7 +33,7 @@ export function NotesApp() {
   )
   const viewer = otherEditors[0] ?? null
 
-  async function handleSignOut() {
+  const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.replace('/')
