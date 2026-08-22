@@ -51,7 +51,7 @@ export const DEFAULT_GROUP_TITLE = '無題のグループ'
 export function resolveUserName(
   userId: string | null,
   profiles: Map<string, Profile>,
-  currentUser: Profile | null,
+  currentUser: Profile | null
 ): string {
   if (!userId) return '不明'
   if (currentUser && userId === currentUser.id) return currentUser.name

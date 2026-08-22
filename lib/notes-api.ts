@@ -31,9 +31,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>
   const name =
-    [meta.display_name, meta.name, meta.full_name].find(
-      (v): v is string => typeof v === 'string' && v.trim() !== '',
-    ) ??
+    [meta.display_name, meta.name, meta.full_name].find((v): v is string => typeof v === 'string' && v.trim() !== '') ??
     user.email?.split('@')[0] ??
     'ユーザー'
 
@@ -92,10 +90,7 @@ export async function insertPageRow(input: {
 
 export async function updatePageTitle(id: string, title: string, userId: string): Promise<void> {
   const supabase = createClient()
-  const { error } = await supabase
-    .from('pages')
-    .update({ title, updated_by: userId })
-    .eq('id', id)
+  const { error } = await supabase.from('pages').update({ title, updated_by: userId }).eq('id', id)
 
   if (error) throw error
 }
@@ -106,11 +101,7 @@ export async function updatePageTitle(id: string, title: string, userId: string)
  */
 export async function fetchPageContent(id: string): Promise<PartialBlock[] | null> {
   const supabase = createClient()
-  const { data, error } = await supabase
-    .from('pages')
-    .select('content')
-    .eq('id', id)
-    .single()
+  const { data, error } = await supabase.from('pages').select('content').eq('id', id).single()
 
   if (error) throw error
 
@@ -121,16 +112,9 @@ export async function fetchPageContent(id: string): Promise<PartialBlock[] | nul
 }
 
 /** 本文の保存。競合解決はせず last-write-wins（後から書いた側が勝つ） */
-export async function updatePageContent(
-  id: string,
-  content: Block[],
-  userId: string,
-): Promise<void> {
+export async function updatePageContent(id: string, content: Block[], userId: string): Promise<void> {
   const supabase = createClient()
-  const { error } = await supabase
-    .from('pages')
-    .update({ content, updated_by: userId })
-    .eq('id', id)
+  const { error } = await supabase.from('pages').update({ content, updated_by: userId }).eq('id', id)
 
   if (error) throw error
 }

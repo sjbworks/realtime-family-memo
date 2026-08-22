@@ -31,9 +31,7 @@ export function SidebarPanel({ onCollapse, showCollapse }: Props) {
             </span>
           )}
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold leading-tight">
-              ふたりノート
-            </span>
+            <span className="block truncate text-sm font-semibold leading-tight">ふたりノート</span>
             <span className="block truncate text-xs text-muted-foreground leading-tight">
               {currentUser?.name ?? '読み込み中...'}
             </span>

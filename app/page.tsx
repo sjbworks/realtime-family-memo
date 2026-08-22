@@ -1,5 +1,5 @@
-import { LoginForm } from "@/components/login-form";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { LoginForm } from '@/components/login-form'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export default function Page() {
   return (
@@ -9,5 +9,5 @@ export default function Page() {
       </div>
       <LoginForm />
     </main>
-  );
+  )
 }

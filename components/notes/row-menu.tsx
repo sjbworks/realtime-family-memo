@@ -85,7 +85,7 @@ export function RowMenu({ label, onRename, onDelete, className }: Props) {
           'mr-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-sidebar-border hover:text-sidebar-foreground',
           className,
           // メニューを開いている間は hover が外れても消さない
-          position && 'bg-sidebar-border text-sidebar-foreground opacity-100 md:opacity-100',
+          position && 'bg-sidebar-border text-sidebar-foreground opacity-100 md:opacity-100'
         )}
       >
         <MoreVertical className="size-4" />

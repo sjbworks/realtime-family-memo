@@ -54,7 +54,7 @@ export function usePageContent(pageId: string | null, userId: string | null): Pa
     () => () => {
       mountedRef.current = false
     },
-    [],
+    []
   )
 
   /** 溜まっている変更を debounce の残り時間を待たずに書き出す */
@@ -120,7 +120,7 @@ export function usePageContent(pageId: string | null, userId: string | null): Pa
     () => () => {
       void flush()
     },
-    [pageId, flush],
+    [pageId, flush]
   )
 
   // debounce 中にタブを閉じるとその分の編集が消えるため、そのときだけ確認を出す
@@ -146,7 +146,7 @@ export function usePageContent(pageId: string | null, userId: string | null): Pa
         void flush()
       }, SAVE_DEBOUNCE_MS)
     },
-    [contentPageId, flush],
+    [contentPageId, flush]
   )
 
   const dismissContentError = useCallback(() => {

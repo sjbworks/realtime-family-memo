@@ -42,15 +42,10 @@ export function LoginForm() {
           <NotebookPen className="size-6" />
         </div>
         <h1 className="text-xl font-bold tracking-tight text-balance">ふたりノート</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground text-pretty">
-          夫婦で家事や保育園の情報を共有するメモ
-        </p>
+        <p className="mt-1.5 text-sm text-muted-foreground text-pretty">夫婦で家事や保育園の情報を共有するメモ</p>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-xl border border-border bg-card p-6 shadow-sm"
-      >
+      <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="email" className="text-sm font-medium text-foreground">
@@ -85,10 +80,7 @@ export function LoginForm() {
           </div>
 
           {error && (
-            <p
-              role="alert"
-              className="text-sm text-destructive"
-            >
+            <p role="alert" className="text-sm text-destructive">
               {error}
             </p>
           )}
