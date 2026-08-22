@@ -22,7 +22,7 @@ export function SidebarContent() {
     cancelEdit,
   } = useNotes()
 
-  function confirmDelete(page: Page) {
+  const confirmDelete = (page: Page) => {
     const title = page.title || DEFAULT_PAGE_TITLE
     if (window.confirm(`「${title}」を削除しますか？この操作は取り消せません。`)) {
       removePage(page.id)

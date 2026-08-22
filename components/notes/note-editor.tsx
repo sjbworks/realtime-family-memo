@@ -5,12 +5,6 @@ import { useEffect, useRef, type ClipboardEvent, type KeyboardEvent } from 'reac
 import { DEFAULT_PAGE_TITLE, formatRelativeTime, resolveUserName, type Page } from '@/lib/notes-data'
 import { useNotes } from '@/components/notes/notes-context'
 
-// BlockNote は ProseMirror ベースで SSR できないうえ重いので、クライアント側で遅延読み込みする
-const PageBlockEditor = dynamic(() => import('@/components/notes/page-block-editor').then((m) => m.PageBlockEditor), {
-  ssr: false,
-  loading: () => <EditorSkeleton />,
-})
-
 function EditorSkeleton() {
   return (
     <div className="mt-6 flex flex-col gap-3 md:pl-12" aria-hidden>
@@ -20,6 +14,12 @@ function EditorSkeleton() {
     </div>
   )
 }
+
+// BlockNote は ProseMirror ベースで SSR できないうえ重いので、クライアント側で遅延読み込みする
+const PageBlockEditor = dynamic(() => import('@/components/notes/page-block-editor').then((m) => m.PageBlockEditor), {
+  ssr: false,
+  loading: () => <EditorSkeleton />,
+})
 
 /**
  * ページ見出し兼タイトル入力。確定（blur / Enter）でサイドバーと DB に反映する。
