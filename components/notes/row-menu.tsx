@@ -26,12 +26,12 @@ export function RowMenu({ label, onRename, onDelete, className }: Props) {
   useEffect(() => {
     if (!position) return
 
-    function handlePointerDown(e: PointerEvent) {
+    const handlePointerDown = (e: PointerEvent) => {
       const target = e.target as Node
       if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) return
       setPosition(null)
     }
-    function handleKeyDown(e: KeyboardEvent) {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setPosition(null)
         buttonRef.current?.focus()
@@ -52,7 +52,7 @@ export function RowMenu({ label, onRename, onDelete, className }: Props) {
     }
   }, [position])
 
-  function toggle() {
+  const toggle = () => {
     if (position) {
       setPosition(null)
       return
@@ -67,7 +67,7 @@ export function RowMenu({ label, onRename, onDelete, className }: Props) {
     })
   }
 
-  function run(action: () => void) {
+  const run = (action: () => void) => {
     setPosition(null)
     action()
   }

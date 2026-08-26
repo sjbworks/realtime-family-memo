@@ -9,7 +9,7 @@ import { useSyncExternalStore } from 'react'
  * NOTE: components/theme-toggle.tsx は `.dark` の有無だけを見ており、
  * OS がダーク・クラス未指定のときの判定がここと一致しない。
  */
-function subscribe(callback: () => void) {
+const subscribe = (callback: () => void) => {
   const observer = new MutationObserver(callback)
   observer.observe(document.documentElement, {
     attributes: true,
@@ -25,13 +25,13 @@ function subscribe(callback: () => void) {
   }
 }
 
-function getSnapshot() {
+const getSnapshot = () => {
   const root = document.documentElement
   if (root.classList.contains('dark')) return true
   if (root.classList.contains('light')) return false
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-export function useIsDarkTheme() {
+export const useIsDarkTheme = () => {
   return useSyncExternalStore(subscribe, getSnapshot, () => false)
 }

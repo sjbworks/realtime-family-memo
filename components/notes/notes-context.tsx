@@ -63,7 +63,67 @@ const NotesContext = createContext<NotesContextValue | null>(null)
 const DRAFT_PREFIX = 'draft-'
 const isDraftId = (id: string) => id.startsWith(DRAFT_PREFIX)
 
-export function useNotes() {
+// ------------------------------------------------------------------ helpers
+
+/** 空欄のまま確定されたときは DB 側の default と揃えた既定タイトルにする */
+const resolveTitle = (value: string, kind: EditKind): string => {
+  return value.trim() || (kind === 'group' ? DEFAULT_GROUP_TITLE : DEFAULT_PAGE_TITLE)
+}
+
+const findPage = (groups: Group[], pageId: string | null): Page | null => {
+  if (!pageId) return null
+  for (const group of groups) {
+    const page = group.pages.find((p) => p.id === pageId)
+    if (page) return page
+  }
+  return null
+}
+
+const findTitle = (groups: Group[], id: string, kind: EditKind): string | null => {
+  if (kind === 'group') return groups.find((g) => g.id === id)?.name ?? null
+  return findPage(groups, id)?.title ?? null
+}
+
+const findGroupIdOfPage = (groups: Group[], pageId: string): string | null => {
+  return groups.find((g) => g.pages.some((p) => p.id === pageId))?.id ?? null
+}
+
+const renameNode = (groups: Group[], id: string, kind: EditKind, name: string): Group[] => {
+  if (kind === 'group') {
+    return groups.map((g) => (g.id === id ? { ...g, name } : g))
+  }
+  return groups.map((g) => ({
+    ...g,
+    pages: g.pages.map((p) => (p.id === id ? { ...p, title: name } : p)),
+  }))
+}
+
+const replaceDraft = (groups: Group[], draftId: string, kind: EditKind, row: PageRow): Group[] => {
+  if (kind === 'group') {
+    return groups.map((g) =>
+      g.id === draftId
+        ? { ...g, id: row.id, name: row.title, pages: g.pages.map((p) => ({ ...p, groupId: row.id })) }
+        : g
+    )
+  }
+  return groups.map((g) => ({
+    ...g,
+    pages: g.pages.map((p) => (p.id === draftId ? toPage(row, g.id) : p)),
+  }))
+}
+
+/** 削除したページの代わりに選択するページ（同じグループの隣 → 全体の先頭） */
+const neighborPageId = (groups: Group[], removedId: string): string | null => {
+  const group = groups.find((g) => g.pages.some((p) => p.id === removedId))
+  if (group) {
+    const index = group.pages.findIndex((p) => p.id === removedId)
+    const sibling = group.pages[index + 1] ?? group.pages[index - 1]
+    if (sibling) return sibling.id
+  }
+  return groups.flatMap((g) => g.pages).find((p) => p.id !== removedId)?.id ?? null
+}
+
+export const useNotes = () => {
   const ctx = useContext(NotesContext)
   if (!ctx) throw new Error('useNotes must be used within NotesProvider')
   return ctx
@@ -95,7 +155,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
 
-    async function load() {
+    const load = async () => {
       try {
         const [user, rows, people] = await Promise.all([
           getCurrentUser(),
@@ -126,7 +186,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   }, [])
 
   /** 保存インジケータを出しつつ実行し、失敗したら rollback して理由を表示する */
-  async function runSave(fn: () => Promise<void>, message: string, rollback?: () => void) {
+  const runSave = async (fn: () => Promise<void>, message: string, rollback?: () => void) => {
     setPending((p) => p + 1)
     setError(null)
     try {
@@ -139,25 +199,25 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function selectPage(id: string) {
+  const selectPage = (id: string) => {
     setActivePageId(id)
     setDrawerOpen(false)
   }
 
-  function toggleGroup(id: string) {
+  const toggleGroup = (id: string) => {
     setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
   // 空の行を DB に作らないよう、新規作成はまず下書きとしてローカルに置き、
   // 名前が確定した commitEdit のタイミングで INSERT する。
-  function addGroup() {
+  const addGroup = () => {
     const id = `${DRAFT_PREFIX}${Date.now()}`
     setGroups((prev) => [...prev, { id, name: '', pages: [] }])
     setOpenGroups((prev) => ({ ...prev, [id]: true }))
     setEditing({ id, kind: 'group', isNew: true })
   }
 
-  function addPage(groupId: string) {
+  const addPage = (groupId: string) => {
     const id = `${DRAFT_PREFIX}${Date.now()}`
     setOpenGroups((prev) => ({ ...prev, [groupId]: true }))
     setGroups((prev) =>
@@ -173,28 +233,24 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     setEditing({ id, kind: 'page', isNew: true })
   }
 
-  function startRename(id: string, kind: EditKind) {
+  const startRename = (id: string, kind: EditKind) => {
     setEditing({ id, kind, isNew: false })
   }
 
-  function commitEdit(value: string) {
-    if (!editing) return
-    const target = editing
-    setEditing(null)
-
-    if (target.isNew) {
-      createNode(target, resolveTitle(value, target.kind))
-      return
+  const removeDraft = (target: NonNullable<Editing>) => {
+    if (target.kind === 'group') {
+      setGroups((prev) => prev.filter((g) => g.id !== target.id))
+      setOpenGroups((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => id !== target.id)))
+    } else {
+      setGroups((prev) => prev.map((g) => ({ ...g, pages: g.pages.filter((p) => p.id !== target.id) })))
     }
-
-    applyRename(target.id, target.kind, value)
   }
 
   /**
    * 既存の行の名前を変更する。サイドバーのインライン編集と、
    * ページ本文の見出し（note-editor.tsx）の両方から呼ばれる。
    */
-  function applyRename(id: string, kind: EditKind, value: string) {
+  const applyRename = (id: string, kind: EditKind, value: string) => {
     if (isDraftId(id)) return
 
     const title = resolveTitle(value, kind)
@@ -212,7 +268,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     )
   }
 
-  function createNode(target: NonNullable<Editing>, title: string) {
+  const createNode = (target: NonNullable<Editing>, title: string) => {
     // 入力中の下書きに名前だけ反映しておき、INSERT 後に実 id へ差し替える
     setGroups((prev) => renameNode(prev, target.id, target.kind, title))
 
@@ -248,22 +304,26 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     )
   }
 
-  function cancelEdit() {
+  const commitEdit = (value: string) => {
+    if (!editing) return
+    const target = editing
+    setEditing(null)
+
+    if (target.isNew) {
+      createNode(target, resolveTitle(value, target.kind))
+      return
+    }
+
+    applyRename(target.id, target.kind, value)
+  }
+
+  const cancelEdit = () => {
     if (!editing) return
     if (editing.isNew) removeDraft(editing)
     setEditing(null)
   }
 
-  function removeDraft(target: NonNullable<Editing>) {
-    if (target.kind === 'group') {
-      setGroups((prev) => prev.filter((g) => g.id !== target.id))
-      setOpenGroups((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => id !== target.id)))
-    } else {
-      setGroups((prev) => prev.map((g) => ({ ...g, pages: g.pages.filter((p) => p.id !== target.id) })))
-    }
-  }
-
-  function removePage(id: string) {
+  const removePage = (id: string) => {
     if (isDraftId(id)) {
       removeDraft({ id, kind: 'page', isNew: true })
       if (editing?.id === id) setEditing(null)
@@ -322,64 +382,4 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   }
 
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>
-}
-
-// ------------------------------------------------------------------ helpers
-
-/** 空欄のまま確定されたときは DB 側の default と揃えた既定タイトルにする */
-function resolveTitle(value: string, kind: EditKind): string {
-  return value.trim() || (kind === 'group' ? DEFAULT_GROUP_TITLE : DEFAULT_PAGE_TITLE)
-}
-
-function findPage(groups: Group[], pageId: string | null): Page | null {
-  if (!pageId) return null
-  for (const group of groups) {
-    const page = group.pages.find((p) => p.id === pageId)
-    if (page) return page
-  }
-  return null
-}
-
-function findTitle(groups: Group[], id: string, kind: EditKind): string | null {
-  if (kind === 'group') return groups.find((g) => g.id === id)?.name ?? null
-  return findPage(groups, id)?.title ?? null
-}
-
-function findGroupIdOfPage(groups: Group[], pageId: string): string | null {
-  return groups.find((g) => g.pages.some((p) => p.id === pageId))?.id ?? null
-}
-
-function renameNode(groups: Group[], id: string, kind: EditKind, name: string): Group[] {
-  if (kind === 'group') {
-    return groups.map((g) => (g.id === id ? { ...g, name } : g))
-  }
-  return groups.map((g) => ({
-    ...g,
-    pages: g.pages.map((p) => (p.id === id ? { ...p, title: name } : p)),
-  }))
-}
-
-function replaceDraft(groups: Group[], draftId: string, kind: EditKind, row: PageRow): Group[] {
-  if (kind === 'group') {
-    return groups.map((g) =>
-      g.id === draftId
-        ? { ...g, id: row.id, name: row.title, pages: g.pages.map((p) => ({ ...p, groupId: row.id })) }
-        : g
-    )
-  }
-  return groups.map((g) => ({
-    ...g,
-    pages: g.pages.map((p) => (p.id === draftId ? toPage(row, g.id) : p)),
-  }))
-}
-
-/** 削除したページの代わりに選択するページ（同じグループの隣 → 全体の先頭） */
-function neighborPageId(groups: Group[], removedId: string): string | null {
-  const group = groups.find((g) => g.pages.some((p) => p.id === removedId))
-  if (group) {
-    const index = group.pages.findIndex((p) => p.id === removedId)
-    const sibling = group.pages[index + 1] ?? group.pages[index - 1]
-    if (sibling) return sibling.id
-  }
-  return groups.flatMap((g) => g.pages).find((p) => p.id !== removedId)?.id ?? null
 }

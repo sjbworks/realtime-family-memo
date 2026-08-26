@@ -14,7 +14,7 @@ type PagePresence = { pageId: string; editors: EditorInfo[] }
  * pageId / userId が未確定のうちは購読しない。空文字のまま track すると
  * 相手側の presence に空のエントリが載ってしまうため。
  */
-export function usePagePresence(pageId: string | null, currentUser: EditorInfo | null): EditorInfo[] {
+export const usePagePresence = (pageId: string | null, currentUser: EditorInfo | null): EditorInfo[] => {
   const [presence, setPresence] = useState<PagePresence | null>(null)
 
   // オブジェクトのまま deps に入れると毎レンダー貼り直しになるので分解して渡す

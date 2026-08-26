@@ -38,7 +38,7 @@ export type PageContentState = {
  *   - 反映するとしても replaceBlocks() で差分を当てるか、
  *     「パートナーが更新しました。再読み込みしますか？」を出してユーザーに委ねる
  */
-export function usePageContent(pageId: string | null, userId: string | null): PageContentState {
+export const usePageContent = (pageId: string | null, userId: string | null): PageContentState => {
   const [loaded, setLoaded] = useState<LoadedContent | null>(null)
   const [status, setStatus] = useState<ContentStatus>('idle')
   const [error, setError] = useState<string | null>(null)

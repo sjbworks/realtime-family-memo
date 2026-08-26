@@ -43,7 +43,7 @@ export function MfaVerifyForm() {
     })
   }, [router])
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!factorId) return
     setError(null)
@@ -66,7 +66,7 @@ export function MfaVerifyForm() {
     router.refresh()
   }
 
-  async function handleCancel() {
+  const handleCancel = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.replace('/')
