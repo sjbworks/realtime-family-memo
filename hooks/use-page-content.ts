@@ -50,12 +50,15 @@ export const usePageContent = (pageId: string | null, userId: string | null): Pa
   /** 遅れて返ってきた古い保存レスポンスで状態を上書きしないための世代番号 */
   const saveSeqRef = useRef(0)
 
-  useEffect(
-    () => () => {
+  // StrictMode は mount → cleanup → mount と effect を二度走らせるので、
+  // mount のたびに true へ戻さないと二度目以降 false のままになり、
+  // 保存完了後の setStatus('saved') が捨てられて「保存中...」が消えなくなる。
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
       mountedRef.current = false
-    },
-    []
-  )
+    }
+  }, [])
 
   /** 溜まっている変更を debounce の残り時間を待たずに書き出す */
   const flush = useCallback(async () => {
