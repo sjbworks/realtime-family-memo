@@ -1,22 +1,25 @@
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieMethodsServer } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export const updateSession = async (request: NextRequest) => {
   let supabaseResponse = NextResponse.next({ request })
 
+  // createServerClient はオーバーロード（非推奨の get/set/remove 版）を持つため、
+  // オブジェクトリテラルを直接渡すとコールバック引数が推論されず implicit any になる。
+  // 型を明示して受ける。
+  const cookies: CookieMethodsServer = {
+    getAll: () => request.cookies.getAll(),
+    setAll: (cookiesToSet) => {
+      cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+      supabaseResponse = NextResponse.next({ request })
+      cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+    },
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
-        },
-      },
-    }
+    { cookies }
   )
 
   // getUser() を呼ぶことでセッション（アクセストークン）が更新される。
