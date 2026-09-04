@@ -31,8 +31,7 @@ export function PageBlockEditor({ initialContent, onChange }: Props) {
     <BlockNoteView
       editor={editor}
       theme={isDark ? 'dark' : 'light'}
-      // ドラッグハンドル / ＋ ボタンはブロックの左外側に出るので、その分の余白を確保する
-      className="bn-page-editor md:pl-12"
+      className="bn-page-editor"
       onChange={(instance) => onChange(instance.document)}
     />
   )
