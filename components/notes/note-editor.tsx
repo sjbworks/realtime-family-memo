@@ -7,7 +7,7 @@ import { useNotes } from '@/components/notes/notes-context'
 
 function EditorSkeleton() {
   return (
-    <div className="mt-6 flex flex-col gap-3 md:pl-12" aria-hidden>
+    <div className="mt-6 flex flex-col gap-3" aria-hidden>
       <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
       <div className="h-4 w-full animate-pulse rounded bg-muted" />
       <div className="h-4 w-4/5 animate-pulse rounded bg-muted" />
@@ -102,8 +102,11 @@ export function NoteEditor({ page, currentUser }: Props) {
   // 空ドキュメントで既存の内容を上書きしてしまうのを防ぐため。
   const contentReady = contentPageId === page.id
 
+  // PC ではドラッグハンドル / ＋ ボタンがブロックの左外側に出る。main が
+  // overflow-y-auto で左へのはみ出しを切ってしまうので、列ごと右に寄せて
+  // その分の余白を左に確保する（タイトルと本文の左端は揃ったまま）
   return (
-    <div className="mx-auto w-full max-w-2xl px-5 py-6 md:px-8 md:py-10">
+    <div className="mx-auto w-full max-w-2xl px-5 py-6 md:py-10 md:pl-16 md:pr-8">
       <PageTitle key={page.id} pageId={page.id} title={page.title} />
 
       {/* Meta */}

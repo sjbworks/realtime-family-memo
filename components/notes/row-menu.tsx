@@ -82,10 +82,9 @@ export function RowMenu({ label, onRename, onDelete, className }: Props) {
         aria-haspopup="menu"
         aria-expanded={position !== null}
         className={cn(
-          'mr-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-sidebar-border hover:text-sidebar-foreground',
+          'mr-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-border hover:text-sidebar-foreground',
           className,
-          // メニューを開いている間は hover が外れても消さない
-          position && 'bg-sidebar-border text-sidebar-foreground opacity-100 md:opacity-100'
+          position && 'bg-sidebar-border text-sidebar-foreground'
         )}
       >
         <MoreVertical className="size-4" />

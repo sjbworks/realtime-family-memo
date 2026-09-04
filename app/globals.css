@@ -212,6 +212,10 @@
 .bn-page-editor .bn-editor {
   font-size: 15px;
   line-height: 1.75;
+  /* 既定の padding-inline: 54px はドラッグハンドル用の余白。ハンドルの場所は
+     呼び出し側（note-editor.tsx）が列ごと確保するので、ここでは詰めて
+     本文の左端をタイトルに揃える。 */
+  padding-inline: 0;
 }
 
 /* 見出しは BlockNote 既定（h1 3em / h2 2em / h3 1.3em）だと本文 15px に対して大きい。

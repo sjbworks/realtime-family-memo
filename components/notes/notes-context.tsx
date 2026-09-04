@@ -53,6 +53,7 @@ type NotesContextValue = {
   addPage: (groupId: string) => void
   startRename: (id: string, kind: EditKind) => void
   removePage: (id: string) => void
+  removeGroup: (id: string) => void
   commitEdit: (value: string) => void
   cancelEdit: () => void
   dismissError: () => void
@@ -347,6 +348,40 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  const removeGroup = (id: string) => {
+    if (isDraftId(id)) {
+      removeDraft({ id, kind: 'group', isNew: true })
+      if (editing?.id === id) setEditing(null)
+      return
+    }
+
+    const snapshot = groups
+    const previousActiveId = activePageId
+    const previousOpenGroups = openGroups
+    const removed = groups.find((g) => g.id === id)
+    // 配下のページも消えるので、編集中・表示中がその中にあれば畳む
+    const holdsEditing =
+      editing !== null && (editing.id === id || (removed?.pages.some((p) => p.id === editing.id) ?? false))
+    const holdsActive = removed?.pages.some((p) => p.id === activePageId) ?? false
+
+    setGroups((prev) => prev.filter((g) => g.id !== id))
+    setOpenGroups((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => key !== id)))
+    if (holdsEditing) setEditing(null)
+    if (holdsActive) {
+      setActivePageId(groups.filter((g) => g.id !== id).flatMap((g) => g.pages)[0]?.id ?? null)
+    }
+
+    void runSave(
+      () => deletePageRow(id),
+      'グループを削除できませんでした',
+      () => {
+        setGroups(snapshot)
+        setOpenGroups(previousOpenGroups)
+        setActivePageId(previousActiveId)
+      }
+    )
+  }
+
   const value: NotesContextValue = {
     groups,
     openGroups,
@@ -373,6 +408,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     addPage,
     startRename,
     removePage,
+    removeGroup,
     commitEdit,
     cancelEdit,
     dismissError: () => {
