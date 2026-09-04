@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, FileText, Folder, GripVertical, Plus, Search
 import { useNotes } from '@/components/notes/notes-context'
 import { InlineEdit } from '@/components/notes/inline-edit'
 import { RowMenu } from '@/components/notes/row-menu'
-import { DEFAULT_PAGE_TITLE, type Page } from '@/lib/notes-data'
+import { DEFAULT_GROUP_TITLE, DEFAULT_PAGE_TITLE, type Group, type Page } from '@/lib/notes-data'
 
 export function SidebarContent() {
   const {
@@ -18,6 +18,7 @@ export function SidebarContent() {
     addPage,
     startRename,
     removePage,
+    removeGroup,
     commitEdit,
     cancelEdit,
   } = useNotes()
@@ -26,6 +27,14 @@ export function SidebarContent() {
     const title = page.title || DEFAULT_PAGE_TITLE
     if (window.confirm(`「${title}」を削除しますか？この操作は取り消せません。`)) {
       removePage(page.id)
+    }
+  }
+
+  const confirmDeleteGroup = (group: Group) => {
+    const name = group.name || DEFAULT_GROUP_TITLE
+    const detail = group.pages.length > 0 ? `中のページ ${group.pages.length} 件も削除されます。` : ''
+    if (window.confirm(`「${name}」を削除しますか？${detail}この操作は取り消せません。`)) {
+      removeGroup(group.id)
     }
   }
 
@@ -55,17 +64,13 @@ export function SidebarContent() {
         {groups.map((group) => (
           <li key={group.id}>
             <div className="group/g flex items-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
-              <button
-                type="button"
-                onClick={() => toggleGroup(group.id)}
-                className="flex min-h-11 flex-1 items-center gap-1.5 rounded-md px-2 text-left md:min-h-9"
-                aria-expanded={openGroups[group.id]}
-              >
-                <span className="text-muted-foreground">
-                  {openGroups[group.id] ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-                </span>
-                <Folder className="size-4 shrink-0 text-accent-foreground" />
-                {editingId === group.id ? (
+              {editingId === group.id ? (
+                // 入力中は toggle ボタンで囲まない。囲むと入力欄へのクリックで閉じてしまう
+                <span className="flex min-h-11 flex-1 items-center gap-1.5 px-2 md:min-h-9">
+                  <span className="text-muted-foreground">
+                    {openGroups[group.id] ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                  </span>
+                  <Folder className="size-4 shrink-0 text-accent-foreground" />
                   <InlineEdit
                     initial={group.name}
                     placeholder="グループ名"
@@ -73,18 +78,34 @@ export function SidebarContent() {
                     onCancel={cancelEdit}
                     className="w-full min-w-0 rounded-sm bg-background px-1 py-0.5 text-sm font-medium text-foreground outline-none ring-1 ring-ring"
                   />
-                ) : (
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.id)}
+                  className="flex min-h-11 flex-1 items-center gap-1.5 rounded-md px-2 text-left md:min-h-9"
+                  aria-expanded={openGroups[group.id]}
+                >
+                  <span className="text-muted-foreground">
+                    {openGroups[group.id] ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                  </span>
+                  <Folder className="size-4 shrink-0 text-accent-foreground" />
                   <span className="truncate text-sm font-medium">{group.name}</span>
-                )}
-              </button>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => addPage(group.id)}
                 aria-label={`${group.name || 'グループ'}にページを追加`}
-                className="mr-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-border hover:text-sidebar-foreground"
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-border hover:text-sidebar-foreground"
               >
                 <Plus className="size-4" />
               </button>
+              <RowMenu
+                label={group.name || DEFAULT_GROUP_TITLE}
+                onRename={() => startRename(group.id, 'group')}
+                onDelete={() => confirmDeleteGroup(group)}
+              />
             </div>
 
             {openGroups[group.id] && (
@@ -131,7 +152,6 @@ export function SidebarContent() {
                           label={page.title || DEFAULT_PAGE_TITLE}
                           onRename={() => startRename(page.id, 'page')}
                           onDelete={() => confirmDelete(page)}
-                          className="md:opacity-0 md:group-hover/p:opacity-100"
                         />
                       </div>
                     </li>
