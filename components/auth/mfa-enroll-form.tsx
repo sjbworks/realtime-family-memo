@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ShieldPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { redirectTargetFromLocation } from '@/lib/auth-redirect'
 
 /**
  * TOTP factor の登録フロー。
@@ -72,7 +73,7 @@ export function MfaEnrollForm() {
     }
 
     // 有効化に成功するとセッションは aal2。保護ルートへ進める。
-    router.replace('/notes')
+    router.replace(redirectTargetFromLocation())
     router.refresh()
   }
 

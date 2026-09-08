@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { NotebookPen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { redirectTargetFromLocation } from '@/lib/auth-redirect'
 
 export function LoginForm() {
   const router = useRouter()
@@ -30,8 +31,9 @@ export function LoginForm() {
       return
     }
 
-    // サーバー側のセッション状態を反映させてから遷移する
-    router.replace('/notes')
+    // サーバー側のセッション状態を反映させてから遷移する。
+    // 共有 URL から飛ばされてきていれば、そのページへ戻す
+    router.replace(redirectTargetFromLocation())
     router.refresh()
   }
 
