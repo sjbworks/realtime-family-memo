@@ -1,5 +1,6 @@
 import { createServerClient, type CookieMethodsServer } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { DEFAULT_REDIRECT, REDIRECT_PARAM, sanitizeRedirect } from '@/lib/auth-redirect'
 
 export const updateSession = async (request: NextRequest) => {
   let supabaseResponse = NextResponse.next({ request })
@@ -35,9 +36,17 @@ export const updateSession = async (request: NextRequest) => {
   const isMfaPage = isMfaVerify || isMfaEnroll
   const isLogin = path === '/'
 
+  // 共有された /notes/<pageId> を踏んで認証に飛ばされても元の URL へ戻れるよう、
+  // 行き先を redirect クエリで持ち回す（ログイン → MFA と経由しても失わない）
+  const intended = isProtected
+    ? sanitizeRedirect(`${path}${request.nextUrl.search}`)
+    : sanitizeRedirect(request.nextUrl.searchParams.get(REDIRECT_PARAM))
+
   const redirectTo = (pathname: string) => {
     const url = request.nextUrl.clone()
     url.pathname = pathname
+    url.search = ''
+    if (intended !== DEFAULT_REDIRECT) url.searchParams.set(REDIRECT_PARAM, intended)
     return NextResponse.redirect(url)
   }
 
@@ -61,8 +70,8 @@ export const updateSession = async (request: NextRequest) => {
   if (needsVerify && !isMfaVerify) return redirectTo('/auth/mfa')
   // 登録が必要なら登録ページへ集約
   if (needsEnroll && !isMfaEnroll) return redirectTo('/auth/mfa/enroll')
-  // aal2 到達済みがログイン / MFA ページに留まっている → アプリへ
-  if (fullyAuthed && (isLogin || isMfaPage)) return redirectTo('/notes')
+  // aal2 到達済みがログイン / MFA ページに留まっている → アプリ（元の URL）へ
+  if (fullyAuthed && (isLogin || isMfaPage)) return NextResponse.redirect(new URL(intended, request.url))
 
   return supabaseResponse
 }
