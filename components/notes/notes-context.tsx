@@ -1,5 +1,6 @@
 'use client'
 
+import { usePathname, useRouter } from 'next/navigation'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Block, PartialBlock } from '@blocknote/core'
 import { usePageContent } from '@/hooks/use-page-content'
@@ -63,6 +64,18 @@ const NotesContext = createContext<NotesContextValue | null>(null)
 
 const DRAFT_PREFIX = 'draft-'
 const isDraftId = (id: string) => id.startsWith(DRAFT_PREFIX)
+
+/** ノート画面のルート。ここに開いているページの id を足したものが URL になる */
+export const NOTES_PATH = '/notes'
+
+/** 共有できる URL。/notes/<pageId> を開くとそのページが選択された状態で始まる */
+export const pagePath = (pageId: string) => `${NOTES_PATH}/${encodeURIComponent(pageId)}`
+
+const pageIdFromPath = (pathname: string): string | null => {
+  if (!pathname.startsWith(`${NOTES_PATH}/`)) return null
+  const [segment] = pathname.slice(NOTES_PATH.length + 1).split('/')
+  return segment ? decodeURIComponent(segment) : null
+}
 
 // ------------------------------------------------------------------ helpers
 
@@ -131,9 +144,11 @@ export const useNotes = () => {
 }
 
 export function NotesProvider({ children }: { children: ReactNode }) {
+  const router = useRouter()
+  const pathname = usePathname()
+
   const [groups, setGroups] = useState<Group[]>([])
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
-  const [activePageId, setActivePageId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
@@ -143,12 +158,18 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [profileList, setProfileList] = useState<Profile[]>([])
 
+  // 開いているページは state ではなく URL が持つ。共有された /notes/<pageId> を
+  // 踏めばそのページが開き、戻る / 進むもブラウザ任せで動く。
+  // ツリーに無い id（削除済み・他人の作った URL の打ち間違い）は選択しない。
+  const routePageId = pageIdFromPath(pathname)
+  const activePage = findPage(groups, routePageId)
+  const activePageId = activePage?.id ?? null
+
   // 本文の読み込み / 保存。保存中・エラーはサイドバー操作と同じ表示に合流させる
   const { contentPageId, initialContent, contentStatus, contentError, handleContentChange, dismissContentError } =
     usePageContent(activePageId, currentUser?.id ?? null)
 
   const saving = pending > 0 || contentStatus === 'saving'
-  const activePage = findPage(groups, activePageId)
   const profiles = new Map(profileList.map((p) => [p.id, p]))
   const partner = profileList.find((p) => p.id !== currentUser?.id) ?? null
 
@@ -172,7 +193,6 @@ export function NotesProvider({ children }: { children: ReactNode }) {
         setProfileList(people)
         setGroups(tree)
         setOpenGroups(Object.fromEntries(tree.map((g) => [g.id, true])))
-        setActivePageId(tree.flatMap((g) => g.pages)[0]?.id ?? null)
       } catch (e) {
         if (!cancelled) setError(toErrorMessage(e, 'ページの読み込みに失敗しました'))
       } finally {
@@ -185,6 +205,17 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       cancelled = true
     }
   }, [])
+
+  // URL がページを指していない / 存在しない id を指しているときだけ先頭のページへ寄せる。
+  // 読み込みが終わるまで待つのは、共有 URL のページをツリーが揃う前に見失わないため。
+  useEffect(() => {
+    if (loading) return
+    if (routePageId && findPage(groups, routePageId)) return
+
+    const first = groups.flatMap((g) => g.pages).find((p) => !isDraftId(p.id))
+    if (first) router.replace(pagePath(first.id))
+    else if (routePageId) router.replace(NOTES_PATH)
+  }, [loading, groups, routePageId, router])
 
   /** 保存インジケータを出しつつ実行し、失敗したら rollback して理由を表示する */
   const runSave = async (fn: () => Promise<void>, message: string, rollback?: () => void) => {
@@ -201,8 +232,10 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   }
 
   const selectPage = (id: string) => {
-    setActivePageId(id)
     setDrawerOpen(false)
+    // 下書きはまだ URL にできない。INSERT 後に実 id で改めて選択される
+    if (isDraftId(id)) return
+    router.push(pagePath(id))
   }
 
   const toggleGroup = (id: string) => {
@@ -336,14 +369,17 @@ export function NotesProvider({ children }: { children: ReactNode }) {
 
     setGroups((prev) => prev.map((g) => ({ ...g, pages: g.pages.filter((p) => p.id !== id) })))
     if (editing?.id === id) setEditing(null)
-    if (activePageId === id) setActivePageId(neighborPageId(groups, id))
+    if (activePageId === id) {
+      const neighbor = neighborPageId(groups, id)
+      router.replace(neighbor ? pagePath(neighbor) : NOTES_PATH)
+    }
 
     void runSave(
       () => deletePageRow(id),
       'ページを削除できませんでした',
       () => {
         setGroups(snapshot)
-        setActivePageId(previousActiveId)
+        if (previousActiveId) router.replace(pagePath(previousActiveId))
       }
     )
   }
@@ -368,7 +404,8 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     setOpenGroups((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => key !== id)))
     if (holdsEditing) setEditing(null)
     if (holdsActive) {
-      setActivePageId(groups.filter((g) => g.id !== id).flatMap((g) => g.pages)[0]?.id ?? null)
+      const next = groups.filter((g) => g.id !== id).flatMap((g) => g.pages)[0]
+      router.replace(next ? pagePath(next.id) : NOTES_PATH)
     }
 
     void runSave(
@@ -377,7 +414,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       () => {
         setGroups(snapshot)
         setOpenGroups(previousOpenGroups)
-        setActivePageId(previousActiveId)
+        if (previousActiveId) router.replace(pagePath(previousActiveId))
       }
     )
   }
