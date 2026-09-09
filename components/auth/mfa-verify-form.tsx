@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { redirectTargetFromLocation } from '@/lib/auth-redirect'
 
 /**
  * ログイン時の 2 段階認証（TOTP）コード入力。
@@ -34,8 +35,8 @@ export function MfaVerifyForm() {
       }
       const totp = data.totp.find((f) => f.status === 'verified')
       if (!totp) {
-        // 認証済み factor が無ければ登録画面へ
-        router.replace('/auth/mfa/enroll')
+        // 認証済み factor が無ければ登録画面へ（戻り先の redirect クエリは保つ）
+        router.replace(`/auth/mfa/enroll${window.location.search}`)
         return
       }
       setFactorId(totp.id)
@@ -62,7 +63,7 @@ export function MfaVerifyForm() {
       return
     }
 
-    router.replace('/notes')
+    router.replace(redirectTargetFromLocation())
     router.refresh()
   }
 
