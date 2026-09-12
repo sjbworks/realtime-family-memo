@@ -51,7 +51,7 @@ export function NotesApp() {
 
       {/* Mobile drawer */}
       {drawerOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-40 h-dvh md:hidden">
           <button
             type="button"
             aria-label="メニューを閉じる"

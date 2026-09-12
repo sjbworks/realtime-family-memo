@@ -18,7 +18,7 @@ export function SidebarPanel({ onCollapse, showCollapse }: Props) {
       {/* Header: app name + logged-in user.
           v0 の「ユーザー切り替え」ドロップダウンはダミーデータ前提のものだった。
           実際の認証ではログイン中のアカウントは固定なので、表示のみにしている。 */}
-      <div className="flex items-center gap-2 border-b border-sidebar-border px-3 py-2.5">
+      <div className="flex shrink-0 items-center gap-2 border-b border-sidebar-border px-3 py-2.5">
         <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <NotebookPen className="size-4" />
         </div>
@@ -54,7 +54,7 @@ export function SidebarPanel({ onCollapse, showCollapse }: Props) {
       <SidebarContent />
 
       {/* Footer */}
-      <div className="border-t border-sidebar-border p-2">
+      <div className="shrink-0 border-t border-sidebar-border p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         <button
           type="button"
           onClick={addGroup}

@@ -39,7 +39,7 @@ export function SidebarContent() {
   }
 
   return (
-    <nav className="flex flex-1 flex-col overflow-y-auto px-2 py-3" aria-label="ページ一覧">
+    <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-3" aria-label="ページ一覧">
       {/* Search */}
       <div className="mb-2 px-1">
         <div className="flex h-9 items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/40 px-2.5 text-muted-foreground">
