@@ -34,12 +34,17 @@ export const useAuthLink = (): AuthLinkState => {
     if (!params) return
 
     clearAuthLinkFromUrl()
-    const type = params.kind === 'error' ? null : params.type ?? null
-    setState({ pending: true, signedIn: false, type, error: null })
-    ;(async () => {
+
+    // トークンの消費（= 外部システムへの問い合わせ）を始める。
+    // pending を立ててからしか await しないのは、この間ログインフォームを
+    // 出してしまうとリンクを踏んだ直後に一瞬フォームがちらつくため。
+    const run = async () => {
+      const type = params.kind === 'error' ? null : params.type ?? null
+      setState({ pending: true, signedIn: false, type, error: null })
       const result = await consumeAuthLink(createClient(), params)
       setState({ pending: false, signedIn: result.ok, type, error: result.message ?? null })
-    })()
+    }
+    void run()
   }, [])
 
   return state
