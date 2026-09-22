@@ -16,6 +16,9 @@ export type AuthLinkState = {
 
 const IDLE: AuthLinkState = { pending: false, signedIn: false, type: null, error: null }
 
+const UNEXPECTED_MESSAGE =
+  'リンクを処理できませんでした。ログイン画面から「パスワードを再設定」をやり直してください。'
+
 /**
  * マウント時に URL の認証リンク（招待 / パスワード再設定）を一度だけ処理する。
  * 何も付いていない普通のアクセスでは何もしない。
@@ -41,8 +44,15 @@ export const useAuthLink = (): AuthLinkState => {
     const run = async () => {
       const type = params.kind === 'error' ? null : params.type ?? null
       setState({ pending: true, signedIn: false, type, error: null })
-      const result = await consumeAuthLink(createClient(), params)
-      setState({ pending: false, signedIn: result.ok, type, error: result.message ?? null })
+      try {
+        const result = await consumeAuthLink(createClient(), params)
+        setState({ pending: false, signedIn: result.ok, type, error: result.message ?? null })
+      } catch {
+        // 想定内の失敗は consumeAuthLink が message で返すので、ここに来るのは
+        // env 未設定や storage が触れない等の例外だけ。pending を降ろさないと
+        // 「確認しています...」から戻れなくなるので、必ずフォームまで戻す。
+        setState({ pending: false, signedIn: false, type, error: UNEXPECTED_MESSAGE })
+      }
     }
     void run()
   }, [])
