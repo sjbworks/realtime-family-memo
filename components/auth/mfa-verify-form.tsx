@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { redirectTargetFromLocation } from '@/lib/auth-redirect'
 
+const LOAD_FAILED = '認証情報の取得に失敗しました。時間をおいて再度お試しください。'
+
 /**
  * ログイン時の 2 段階認証（TOTP）コード入力。
  * メール+パスワード認証で aal1 に到達したあと、登録済み factor に対して
@@ -26,22 +28,31 @@ export function MfaVerifyForm() {
     if (initialized.current) return
     initialized.current = true
 
-    const supabase = createClient()
-    supabase.auth.mfa.listFactors().then(({ data, error }) => {
-      if (error || !data) {
-        setError('認証情報の取得に失敗しました。時間をおいて再度お試しください。')
+    const run = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase.auth.mfa.listFactors()
+        if (error || !data) {
+          setError(LOAD_FAILED)
+          setReady(true)
+          return
+        }
+        const totp = data.totp.find((f) => f.status === 'verified')
+        if (!totp) {
+          // 認証済み factor が無ければ登録画面へ（戻り先の redirect クエリは保つ）
+          // ここは遷移するので ready を立てない（フォームを一瞬出さないため）
+          router.replace(`/auth/mfa/enroll${window.location.search}`)
+          return
+        }
+        setFactorId(totp.id)
         setReady(true)
-        return
+      } catch {
+        // 例外でも「確認しています...」で固まらないよう、必ず ready を立てる。
+        setError(LOAD_FAILED)
+        setReady(true)
       }
-      const totp = data.totp.find((f) => f.status === 'verified')
-      if (!totp) {
-        // 認証済み factor が無ければ登録画面へ（戻り先の redirect クエリは保つ）
-        router.replace(`/auth/mfa/enroll${window.location.search}`)
-        return
-      }
-      setFactorId(totp.id)
-      setReady(true)
-    })
+    }
+    void run()
   }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,13 +61,19 @@ export function MfaVerifyForm() {
     setError(null)
     setLoading(true)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.mfa.challengeAndVerify({
-      factorId,
-      code: code.trim(),
-    })
+    let ok = false
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.mfa.challengeAndVerify({
+        factorId,
+        code: code.trim(),
+      })
+      ok = !error
+    } catch {
+      ok = false
+    }
 
-    if (error) {
+    if (!ok) {
       setError('コードが正しくありません。もう一度お試しください。')
       setCode('')
       setLoading(false)
@@ -68,8 +85,12 @@ export function MfaVerifyForm() {
   }
 
   const handleCancel = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch {
+      // サインアウトに失敗してもログイン画面へは戻す（middleware が改めて振り分ける）
+    }
     router.replace('/')
     router.refresh()
   }
