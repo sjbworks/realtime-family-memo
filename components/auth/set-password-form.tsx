@@ -28,7 +28,8 @@ export function SetPasswordForm() {
   // リンクの処理が終わってからセッションの有無を確かめる（無ければフォームを出さない）
   useEffect(() => {
     if (link.pending) return
-    ;(async () => {
+
+    const run = async () => {
       try {
         const supabase = createClient()
         const {
@@ -42,7 +43,8 @@ export function SetPasswordForm() {
       } finally {
         setChecking(false)
       }
-    })()
+    }
+    void run()
   }, [link.pending])
 
   const handleSubmit = async (e: React.FormEvent) => {
