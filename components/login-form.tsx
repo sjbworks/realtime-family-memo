@@ -32,13 +32,21 @@ export function LoginForm() {
     setError(null)
     setLoading(true)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    // 例外（env 未設定 / storage が触れない等）も失敗として扱う。
+    // catch しないと loading を降ろせず、ボタンが「ログイン中...」で固まる。
+    let ok = false
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      ok = !error
+    } catch {
+      ok = false
+    }
 
-    if (error) {
+    if (!ok) {
       setError('メールアドレスまたはパスワードが正しくありません。')
       setLoading(false)
       return
@@ -59,13 +67,19 @@ export function LoginForm() {
     }
 
     setResetting(true)
-    const supabase = createClient()
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}${SET_PASSWORD_PATH}`,
-    })
+    let ok = false
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}${SET_PASSWORD_PATH}`,
+      })
+      ok = !error
+    } catch {
+      ok = false
+    }
     setResetting(false)
 
-    if (error) {
+    if (!ok) {
       setError('メールを送信できませんでした。時間をおいてもう一度お試しください。')
       return
     }
