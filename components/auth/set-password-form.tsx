@@ -29,12 +29,19 @@ export function SetPasswordForm() {
   useEffect(() => {
     if (link.pending) return
     ;(async () => {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setHasSession(Boolean(user))
-      setChecking(false)
+      try {
+        const supabase = createClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        setHasSession(Boolean(user))
+      } catch {
+        // 例外はセッション無しとして扱う。checking を降ろさないと
+        // 「確認しています...」から先に進めなくなる。
+        setHasSession(false)
+      } finally {
+        setChecking(false)
+      }
     })()
   }, [link.pending])
 
@@ -52,10 +59,19 @@ export function SetPasswordForm() {
     }
 
     setLoading(true)
-    const supabase = createClient()
-    const { error: updateError } = await supabase.auth.updateUser({ password })
 
-    if (updateError) {
+    // 例外（env 未設定 / storage が触れない等）も失敗として扱う。
+    // catch しないと loading を降ろせず、ボタンが「設定中...」で固まる。
+    let ok = false
+    try {
+      const supabase = createClient()
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+      ok = !updateError
+    } catch {
+      ok = false
+    }
+
+    if (!ok) {
       setError('パスワードを設定できませんでした。時間をおいてもう一度お試しください。')
       setLoading(false)
       return
