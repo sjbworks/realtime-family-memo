@@ -119,6 +119,22 @@ export const updatePageContent = async (id: string, content: Block[], userId: st
   if (error) throw error
 }
 
+/**
+ * 並び替えの保存。呼び出し側が position を 0 から振り直したうえで、
+ * 実際に値が変わる行だけを渡してくる（Supabase 側のトリガが updated_at を
+ * 動かすので、動かす必要のない行は触らない）。
+ * updated_by は更新しない — 並び順の変更は本文の編集ではないため。
+ */
+export const updatePagePositions = async (updates: { id: string; position: number }[]): Promise<void> => {
+  const supabase = createClient()
+  const results = await Promise.all(
+    updates.map(({ id, position }) => supabase.from('pages').update({ position }).eq('id', id))
+  )
+
+  const failed = results.find((r) => r.error !== null)
+  if (failed?.error) throw failed.error
+}
+
 /** 子ページは FK の ON DELETE CASCADE で一緒に削除される */
 export const deletePageRow = async (id: string): Promise<void> => {
   const supabase = createClient()
@@ -133,6 +149,7 @@ export const toPage = (row: PageRow, groupId: string): Page => {
     title: row.title,
     updatedById: row.updated_by,
     updatedAt: row.updated_at,
+    position: row.position,
   }
 }
 
@@ -143,7 +160,7 @@ export const buildTree = (rows: PageRow[]): Group[] => {
 
   for (const row of rows) {
     if (row.parent_id !== null) continue
-    const group: Group = { id: row.id, name: row.title, pages: [] }
+    const group: Group = { id: row.id, name: row.title, pages: [], position: row.position }
     byId.set(group.id, group)
     groups.push(group)
   }
