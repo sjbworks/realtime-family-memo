@@ -15,6 +15,8 @@ export type Page = {
   updatedById: string | null
   /** ISO8601。表示は formatRelativeTime() で相対表記にする */
   updatedAt: string | null
+  /** グループ内での並び順（pages.position）。並び替えの差分計算にだけ使う */
+  position: number | null
 }
 
 /**
@@ -24,6 +26,8 @@ export type Group = {
   id: string
   name: string
   pages: Page[]
+  /** サイドバー上での並び順（pages.position）。並び替えの差分計算にだけ使う */
+  position: number | null
 }
 
 /** アバターに出す 1 文字。サロゲートペアで割れないよう配列に展開して取る */
