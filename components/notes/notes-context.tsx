@@ -137,6 +137,18 @@ const replaceDraft = (groups: Group[], draftId: string, kind: EditKind, row: Pag
 }
 
 /**
+ * 末尾に足す行の position。既存の兄弟の最大値 + 1 にする。
+ *
+ * 配列の添字（length - 1）で代用すると、途中の行を削除したあと position が 0,2 のように
+ * 飛んだ並びで破綻する。新しい行が既存の行より小さい値を貰い、画面では末尾に見えているのに
+ * リロードすると上に飛ぶ（グループ側では既存の行と同じ値になり重複する）。
+ * 下書きは position を持たないので -1 扱いで数に入らない。
+ */
+const nextPosition = (siblings: { position: number | null }[]): number => {
+  return siblings.reduce((max, s) => Math.max(max, s.position ?? -1), -1) + 1
+}
+
+/**
  * 並び替えの計算。並べ直した配列と、DB に書き戻す必要のある行だけを返す。
  * position は必ず 0 から振り直すので、null や重複が入っていた行もここで揃う。
  * 動かせないとき（範囲外 / 未保存の下書きを含む）は null。
@@ -267,6 +279,26 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  /**
+   * DB のツリーを引き直してローカルを合わせる。並び替えの保存に失敗したときの戻し方。
+   *
+   * RPC で単一トランザクションになったので失敗＝未適用が基本だが、
+   * 「UPDATE は通ったのに応答が返ってこなかった」ケースだけは区別できない。
+   * ここで snapshot に巻き戻すと DB と UI が食い違ったまま残り、しかも次の並び替えは
+   * 差分計算（position と添字の比較）でそのズレを素通りして直さない。DB 側に合わせる。
+   */
+  const resyncTree = async () => {
+    try {
+      const rows = await fetchPageRows()
+      const tree = buildTree(rows)
+      setGroups(tree)
+      // 開閉状態は保ったまま、新しく現れたグループだけ開いておく
+      setOpenGroups((prev) => Object.fromEntries(tree.map((g) => [g.id, prev[g.id] ?? true])))
+    } catch {
+      // 引き直しにも失敗したら、runSave が出す並び替えのエラーをそのまま見せる
+    }
+  }
+
   const selectPage = (id: string) => {
     setDrawerOpen(false)
     // 下書きはまだ URL にできない。INSERT 後に実 id で改めて選択される
@@ -317,12 +349,11 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     const result = applyReorder(group.pages, fromIndex, toIndex)
     if (!result) return
 
-    const snapshot = groups
     setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, pages: result.next } : g)))
     void runSave(
       () => updatePagePositions(result.updates),
       'ページの並び替えを保存できませんでした',
-      () => setGroups(snapshot)
+      () => void resyncTree()
     )
   }
 
@@ -330,12 +361,11 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     const result = applyReorder(groups, fromIndex, toIndex)
     if (!result) return
 
-    const snapshot = groups
     setGroups(result.next)
     void runSave(
       () => updatePagePositions(result.updates),
       'グループの並び替えを保存できませんでした',
-      () => setGroups(snapshot)
+      () => void resyncTree()
     )
   }
 
@@ -375,8 +405,8 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     setGroups((prev) => renameNode(prev, target.id, target.kind, title))
 
     const groupId = target.kind === 'page' ? findGroupIdOfPage(groups, target.id) : null
-    const position =
-      target.kind === 'group' ? groups.length - 1 : (groups.find((g) => g.id === groupId)?.pages.length ?? 1) - 1
+    const siblings = target.kind === 'group' ? groups : (groups.find((g) => g.id === groupId)?.pages ?? [])
+    const position = nextPosition(siblings)
 
     void runSave(
       async () => {

@@ -124,15 +124,17 @@ export const updatePageContent = async (id: string, content: Block[], userId: st
  * 実際に値が変わる行だけを渡してくる（Supabase 側のトリガが updated_at を
  * 動かすので、動かす必要のない行は触らない）。
  * updated_by は更新しない — 並び順の変更は本文の編集ではないため。
+ *
+ * 行ごとに UPDATE を投げると部分失敗で position が半端に残るので、
+ * supabase/migrations/20261001000000_reorder_pages.sql の RPC に渡して
+ * 1 文の UPDATE（= 単一トランザクション）で適用する。
  */
 export const updatePagePositions = async (updates: { id: string; position: number }[]): Promise<void> => {
-  const supabase = createClient()
-  const results = await Promise.all(
-    updates.map(({ id, position }) => supabase.from('pages').update({ position }).eq('id', id))
-  )
+  if (updates.length === 0) return
 
-  const failed = results.find((r) => r.error !== null)
-  if (failed?.error) throw failed.error
+  const supabase = createClient()
+  const { error } = await supabase.rpc('reorder_pages', { items: updates })
+  if (error) throw error
 }
 
 /** 子ページは FK の ON DELETE CASCADE で一緒に削除される */
