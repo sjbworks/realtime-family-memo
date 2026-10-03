@@ -14,6 +14,7 @@ import {
   insertPageRow,
   toErrorMessage,
   toPage,
+  updatePagePositions,
   updatePageTitle,
   type CurrentUser,
   type PageRow,
@@ -53,6 +54,9 @@ type NotesContextValue = {
   addGroup: () => void
   addPage: (groupId: string) => void
   startRename: (id: string, kind: EditKind) => void
+  /** グループ配下のページを fromIndex から toIndex へ移す */
+  reorderPages: (groupId: string, fromIndex: number, toIndex: number) => void
+  reorderGroups: (fromIndex: number, toIndex: number) => void
   removePage: (id: string) => void
   removeGroup: (id: string) => void
   commitEdit: (value: string) => void
@@ -116,7 +120,13 @@ const replaceDraft = (groups: Group[], draftId: string, kind: EditKind, row: Pag
   if (kind === 'group') {
     return groups.map((g) =>
       g.id === draftId
-        ? { ...g, id: row.id, name: row.title, pages: g.pages.map((p) => ({ ...p, groupId: row.id })) }
+        ? {
+            ...g,
+            id: row.id,
+            name: row.title,
+            position: row.position,
+            pages: g.pages.map((p) => ({ ...p, groupId: row.id })),
+          }
         : g
     )
   }
@@ -124,6 +134,44 @@ const replaceDraft = (groups: Group[], draftId: string, kind: EditKind, row: Pag
     ...g,
     pages: g.pages.map((p) => (p.id === draftId ? toPage(row, g.id) : p)),
   }))
+}
+
+/**
+ * 末尾に足す行の position。既存の兄弟の最大値 + 1 にする。
+ *
+ * 配列の添字（length - 1）で代用すると、途中の行を削除したあと position が 0,2 のように
+ * 飛んだ並びで破綻する。新しい行が既存の行より小さい値を貰い、画面では末尾に見えているのに
+ * リロードすると上に飛ぶ（グループ側では既存の行と同じ値になり重複する）。
+ * 下書きは position を持たないので -1 扱いで数に入らない。
+ */
+const nextPosition = (siblings: { position: number | null }[]): number => {
+  return siblings.reduce((max, s) => Math.max(max, s.position ?? -1), -1) + 1
+}
+
+/**
+ * 並び替えの計算。並べ直した配列と、DB に書き戻す必要のある行だけを返す。
+ * position は必ず 0 から振り直すので、null や重複が入っていた行もここで揃う。
+ * 動かせないとき（範囲外 / 未保存の下書きを含む）は null。
+ */
+const applyReorder = <T extends { id: string; position: number | null }>(
+  list: T[],
+  fromIndex: number,
+  toIndex: number
+): { next: T[]; updates: { id: string; position: number }[] } | null => {
+  if (fromIndex === toIndex) return null
+  if (fromIndex < 0 || toIndex < 0 || fromIndex >= list.length || toIndex >= list.length) return null
+
+  const moved = [...list]
+  const [item] = moved.splice(fromIndex, 1)
+  moved.splice(toIndex, 0, item)
+
+  // 下書きはまだ行が無いので position を振れない
+  if (moved.some((i) => isDraftId(i.id))) return null
+
+  return {
+    next: moved.map((i, index) => ({ ...i, position: index })),
+    updates: moved.flatMap((i, index) => (i.position === index ? [] : [{ id: i.id, position: index }])),
+  }
 }
 
 /** 削除したページの代わりに選択するページ（同じグループの隣 → 全体の先頭） */
@@ -231,6 +279,26 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  /**
+   * DB のツリーを引き直してローカルを合わせる。並び替えの保存に失敗したときの戻し方。
+   *
+   * RPC で単一トランザクションになったので失敗＝未適用が基本だが、
+   * 「UPDATE は通ったのに応答が返ってこなかった」ケースだけは区別できない。
+   * ここで snapshot に巻き戻すと DB と UI が食い違ったまま残り、しかも次の並び替えは
+   * 差分計算（position と添字の比較）でそのズレを素通りして直さない。DB 側に合わせる。
+   */
+  const resyncTree = async () => {
+    try {
+      const rows = await fetchPageRows()
+      const tree = buildTree(rows)
+      setGroups(tree)
+      // 開閉状態は保ったまま、新しく現れたグループだけ開いておく
+      setOpenGroups((prev) => Object.fromEntries(tree.map((g) => [g.id, prev[g.id] ?? true])))
+    } catch {
+      // 引き直しにも失敗したら、runSave が出す並び替えのエラーをそのまま見せる
+    }
+  }
+
   const selectPage = (id: string) => {
     setDrawerOpen(false)
     // 下書きはまだ URL にできない。INSERT 後に実 id で改めて選択される
@@ -246,7 +314,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   // 名前が確定した commitEdit のタイミングで INSERT する。
   const addGroup = () => {
     const id = `${DRAFT_PREFIX}${Date.now()}`
-    setGroups((prev) => [...prev, { id, name: '', pages: [] }])
+    setGroups((prev) => [...prev, { id, name: '', pages: [], position: null }])
     setOpenGroups((prev) => ({ ...prev, [id]: true }))
     setEditing({ id, kind: 'group', isNew: true })
   }
@@ -259,7 +327,10 @@ export function NotesProvider({ children }: { children: ReactNode }) {
         g.id === groupId
           ? {
               ...g,
-              pages: [...g.pages, { id, groupId, title: '', updatedById: currentUser?.id ?? null, updatedAt: null }],
+              pages: [
+                ...g.pages,
+                { id, groupId, title: '', updatedById: currentUser?.id ?? null, updatedAt: null, position: null },
+              ],
             }
           : g
       )
@@ -269,6 +340,33 @@ export function NotesProvider({ children }: { children: ReactNode }) {
 
   const startRename = (id: string, kind: EditKind) => {
     setEditing({ id, kind, isNew: false })
+  }
+
+  const reorderPages = (groupId: string, fromIndex: number, toIndex: number) => {
+    const group = groups.find((g) => g.id === groupId)
+    if (!group) return
+
+    const result = applyReorder(group.pages, fromIndex, toIndex)
+    if (!result) return
+
+    setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, pages: result.next } : g)))
+    void runSave(
+      () => updatePagePositions(result.updates),
+      'ページの並び替えを保存できませんでした',
+      () => void resyncTree()
+    )
+  }
+
+  const reorderGroups = (fromIndex: number, toIndex: number) => {
+    const result = applyReorder(groups, fromIndex, toIndex)
+    if (!result) return
+
+    setGroups(result.next)
+    void runSave(
+      () => updatePagePositions(result.updates),
+      'グループの並び替えを保存できませんでした',
+      () => void resyncTree()
+    )
   }
 
   const removeDraft = (target: NonNullable<Editing>) => {
@@ -307,8 +405,8 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     setGroups((prev) => renameNode(prev, target.id, target.kind, title))
 
     const groupId = target.kind === 'page' ? findGroupIdOfPage(groups, target.id) : null
-    const position =
-      target.kind === 'group' ? groups.length - 1 : (groups.find((g) => g.id === groupId)?.pages.length ?? 1) - 1
+    const siblings = target.kind === 'group' ? groups : (groups.find((g) => g.id === groupId)?.pages ?? [])
+    const position = nextPosition(siblings)
 
     void runSave(
       async () => {
@@ -444,6 +542,8 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     addGroup,
     addPage,
     startRename,
+    reorderPages,
+    reorderGroups,
     removePage,
     removeGroup,
     commitEdit,

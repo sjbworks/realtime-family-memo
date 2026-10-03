@@ -58,6 +58,8 @@ Routes:
 
 **One DB table backs the sidebar tree.** `public.pages` is self-referencing: a row with `parent_id IS NULL` is a _group_ (folder), a row with `parent_id` set is a _page_ inside it. Columns: `id`, `parent_id`, `title`, `content` (jsonb, BlockNote のブロック配列), `position`, `created_by`/`updated_by` (→ `auth.users`), `created_at`/`updated_at` (`updated_at` は Supabase 側のトリガで自動更新されるので、アプリからは書かない). RLS grants full access to any logged-in user (`auth.uid() IS NOT NULL`) — the app is invite-only for two people, so there is no per-workspace scoping. Ordering is `position` then `created_at`.
 
+並び替えは `position` を 0 起点で振り直して保存する。書き込みは `public.reorder_pages(jsonb)` という RPC（`supabase/migrations/20261001000000_reorder_pages.sql`）に通し、1 文の UPDATE = 単一トランザクションで適用する — 行ごとに UPDATE を投げると部分失敗で position が半端に残り、次の並び替えが差分計算でそのズレを素通りして直さないため。**この RPC は DB 側に作っておかないと並び替えが動かない。**
+
 **All DB access goes through `lib/notes-api.ts`** (browser Supabase client): `fetchPageRows`, `insertPageRow`, `updatePageTitle`, `deletePageRow`, `getCurrentUser`, `fetchPageContent`/`updatePageContent` (本文 jsonb; ツリーとは別に開いているページの分だけ読む), plus `buildTree()` which folds the flat rows into the 2-level `Group[]` the sidebar renders. Deeper nesting is dropped by `buildTree` — the sidebar only shows two levels.
 
 **State lives in one client-side context.** `components/notes/notes-context.tsx` (`NotesProvider` / `useNotes`) owns the tree, active selection, sidebar/drawer state, inline-editing state, and the loading/saving/error flags. All notes UI reads and mutates through `useNotes()`. Conventions to preserve when adding operations:
@@ -65,9 +67,9 @@ Routes:
 - **Drafts, not empty rows.** `addGroup`/`addPage` insert a local item with a `draft-` id and mark it `editing`; the `INSERT` happens in `commitEdit`, and `cancelEdit` just drops the draft. `replaceDraft` swaps in the real row id afterwards.
 - **Optimistic + rollback.** Mutations update state first, then call the API inside `runSave(fn, message, rollback)`, which drives the "保存中…/保存済み" indicator and surfaces failures via `error` (banner in `notes-app.tsx`).
 
-**Display names come from `public.profiles`.** `auth.users` is not readable from the browser client, so the partner's name needs a mirror in the public schema. `supabase/migrations/20260819000000_profiles.sql` creates `profiles (id, display_name)` with an `auth.users` trigger that keeps it in sync and RLS letting any logged-in user read it. `fetchProfiles()` loads it once at startup into `NotesProvider`, which exposes a `profiles` map (uuid → `Profile`) and `partner` (the one profile that is not you).
+**Display names come from `public.profiles`.** `auth.users` is not readable from the browser client, so the partner's name needs a mirror in the public schema. `profiles (id, display_name)` には `auth.users` から同期するトリガが付いていて、RLS はログイン済みなら誰でも読める設定。**この DDL はリポジトリに控えが無い**（ダッシュボードで直接当てられたもの）— `supabase/README.md` を参照。`fetchProfiles()` loads it once at startup into `NotesProvider`, which exposes a `profiles` map (uuid → `Profile`) and `partner` (the one profile that is not you).
 
-- `resolveUserName(userId, profiles, currentUser)` falls back to "パートナー" when the map has no entry, so the app still works if the migration has not been run.
+- `resolveUserName(userId, profiles, currentUser)` falls back to "パートナー" when the map has no entry, so the app still works if the table has not been created.
 - Avatars carry no DB columns: `initialOf(name)` takes the first character and `avatarColor(isSelf)` fixes self to `primary` and the partner to `presence`. Adding a third user would need a real palette.
 - The v0 "user switcher" dropdown in `sidebar-panel.tsx` was a fixture of the dummy data — with real auth the account is fixed, so it is now a plain display.
 
