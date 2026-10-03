@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { redirectTargetFromLocation } from '@/lib/auth-redirect'
 
+const PREPARE_FAILED = '2段階認証の準備に失敗しました。ページを再読み込みしてください。'
+
 /**
  * TOTP factor の登録フロー。
  * 1. enroll で QR コードと秘密鍵を発行
@@ -28,29 +30,36 @@ export function MfaEnrollForm() {
     if (initialized.current) return
     initialized.current = true
 
-    const supabase = createClient()
-    ;(async () => {
-      // 途中離脱で残った未検証 factor を削除しておく
-      const { data: list } = await supabase.auth.mfa.listFactors()
-      if (list) {
-        for (const factor of list.totp) {
-          if (factor.status !== 'verified') {
-            await supabase.auth.mfa.unenroll({ factorId: factor.id })
+    const run = async () => {
+      try {
+        const supabase = createClient()
+
+        // 途中離脱で残った未検証 factor を削除しておく
+        const { data: list } = await supabase.auth.mfa.listFactors()
+        if (list) {
+          for (const factor of list.totp) {
+            if (factor.status !== 'verified') {
+              await supabase.auth.mfa.unenroll({ factorId: factor.id })
+            }
           }
         }
-      }
 
-      const { data, error } = await supabase.auth.mfa.enroll({
-        factorType: 'totp',
-      })
-      if (error || !data) {
-        setError('2段階認証の準備に失敗しました。ページを再読み込みしてください。')
-        return
+        const { data, error } = await supabase.auth.mfa.enroll({
+          factorType: 'totp',
+        })
+        if (error || !data) {
+          setError(PREPARE_FAILED)
+          return
+        }
+        setFactorId(data.id)
+        setQrCode(data.totp.qr_code)
+        setSecret(data.totp.secret)
+      } catch {
+        // 例外でも QR が出ないまま無言で止まらないよう、必ずエラーを出す。
+        setError(PREPARE_FAILED)
       }
-      setFactorId(data.id)
-      setQrCode(data.totp.qr_code)
-      setSecret(data.totp.secret)
-    })()
+    }
+    void run()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,13 +68,19 @@ export function MfaEnrollForm() {
     setError(null)
     setLoading(true)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.mfa.challengeAndVerify({
-      factorId,
-      code: code.trim(),
-    })
+    let ok = false
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.mfa.challengeAndVerify({
+        factorId,
+        code: code.trim(),
+      })
+      ok = !error
+    } catch {
+      ok = false
+    }
 
-    if (error) {
+    if (!ok) {
       setError('コードが正しくありません。認証アプリの表示を確認してください。')
       setCode('')
       setLoading(false)
@@ -78,8 +93,12 @@ export function MfaEnrollForm() {
   }
 
   const handleCancel = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch {
+      // サインアウトに失敗してもログイン画面へは戻す（middleware が改めて振り分ける）
+    }
     router.replace('/')
     router.refresh()
   }

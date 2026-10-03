@@ -12,18 +12,18 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
-    "@blocknote/core": "^0.54.2",
-    "@blocknote/react": "^0.54.2",
-    "@blocknote/shadcn": "^0.54.2",
+    "@blocknote/core": "^0.55.0",
+    "@blocknote/react": "^0.55.0",
+    "@blocknote/shadcn": "^0.55.0",
     "@supabase/ssr": "^0.12.7",
     "@vercel/analytics": "2.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.45.0",
-    "next": "16.3.4",
+    "lucide-react": "^1.48.0",
+    "next": "16.3.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "tailwind-merge": "^3.3.1"
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

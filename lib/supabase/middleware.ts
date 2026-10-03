@@ -1,6 +1,6 @@
 import { createServerClient, type CookieMethodsServer } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { DEFAULT_REDIRECT, REDIRECT_PARAM, sanitizeRedirect } from '@/lib/auth-redirect'
+import { DEFAULT_REDIRECT, REDIRECT_PARAM, SET_PASSWORD_PATH, sanitizeRedirect } from '@/lib/auth-redirect'
 
 export const updateSession = async (request: NextRequest) => {
   let supabaseResponse = NextResponse.next({ request })
@@ -34,13 +34,17 @@ export const updateSession = async (request: NextRequest) => {
   const isMfaVerify = path === '/auth/mfa'
   const isMfaEnroll = path === '/auth/mfa/enroll'
   const isMfaPage = isMfaVerify || isMfaEnroll
+  const isSetPassword = path === SET_PASSWORD_PATH
   const isLogin = path === '/'
 
   // 共有された /notes/<pageId> を踏んで認証に飛ばされても元の URL へ戻れるよう、
   // 行き先を redirect クエリで持ち回す（ログイン → MFA と経由しても失わない）
-  const intended = isProtected
-    ? sanitizeRedirect(`${path}${request.nextUrl.search}`)
-    : sanitizeRedirect(request.nextUrl.searchParams.get(REDIRECT_PARAM))
+  const intended = (() => {
+    if (isProtected) return sanitizeRedirect(`${path}${request.nextUrl.search}`)
+    // 再設定リンクを踏んだのが 2段階認証済みアカウントなら、コード入力を挟んでからここへ戻す
+    if (isSetPassword) return SET_PASSWORD_PATH
+    return sanitizeRedirect(request.nextUrl.searchParams.get(REDIRECT_PARAM))
+  })()
 
   const redirectTo = (pathname: string) => {
     const url = request.nextUrl.clone()
@@ -50,7 +54,9 @@ export const updateSession = async (request: NextRequest) => {
     return NextResponse.redirect(url)
   }
 
-  // 未ログインで保護ルート / MFA ページにアクセス → ログイン画面へ
+  // 未ログインで保護ルート / MFA ページにアクセス → ログイン画面へ。
+  // パスワード設定画面は素通しする（招待 / 再設定リンクのトークンを
+  // ブラウザ側で消費してからセッションが張られるため、この時点ではまだ未ログイン）
   if (!user) {
     if (isProtected || isMfaPage) return redirectTo('/')
     return supabaseResponse
@@ -68,8 +74,9 @@ export const updateSession = async (request: NextRequest) => {
 
   // コード検証が必要なら検証ページへ集約
   if (needsVerify && !isMfaVerify) return redirectTo('/auth/mfa')
-  // 登録が必要なら登録ページへ集約
-  if (needsEnroll && !isMfaEnroll) return redirectTo('/auth/mfa/enroll')
+  // 登録が必要なら登録ページへ集約。
+  // ただし招待直後はまずパスワードを決めてもらう（未設定のままだと次回ログインできない）
+  if (needsEnroll && !isMfaEnroll && !isSetPassword) return redirectTo('/auth/mfa/enroll')
   // aal2 到達済みがログイン / MFA ページに留まっている → アプリ（元の URL）へ
   if (fullyAuthed && (isLogin || isMfaPage)) return NextResponse.redirect(new URL(intended, request.url))
 
