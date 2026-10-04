@@ -6,6 +6,7 @@ import { KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { DEFAULT_REDIRECT, SET_PASSWORD_PATH, redirectTargetFromLocation } from '@/lib/auth-redirect'
+import { messageForPasswordUpdateError } from '@/lib/auth-errors'
 import { useAuthLink } from '@/hooks/use-auth-link'
 
 const MIN_LENGTH = 8
@@ -64,17 +65,23 @@ export function SetPasswordForm() {
 
     // 例外（env 未設定 / storage が触れない等）も失敗として扱う。
     // catch しないと loading を降ろせず、ボタンが「設定中...」で固まる。
-    let ok = false
+    // 失敗の理由は messageForPasswordUpdateError で出し分ける — 固定文だけだと
+    // パスワードが弱いのかリンクが切れたのかを利用者側で切り分けられない。
+    let failure: string | null = null
     try {
       const supabase = createClient()
       const { error: updateError } = await supabase.auth.updateUser({ password })
-      ok = !updateError
-    } catch {
-      ok = false
+      if (updateError) {
+        console.error('[set-password] updateUser failed', updateError)
+        failure = messageForPasswordUpdateError(updateError)
+      }
+    } catch (thrown) {
+      console.error('[set-password] updateUser threw', thrown)
+      failure = messageForPasswordUpdateError(thrown as { message?: string })
     }
 
-    if (!ok) {
-      setError('パスワードを設定できませんでした。時間をおいてもう一度お試しください。')
+    if (failure) {
+      setError(failure)
       setLoading(false)
       return
     }
