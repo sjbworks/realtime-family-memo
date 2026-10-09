@@ -34,7 +34,7 @@ export function InlineEdit({ initial, placeholder, onCommit, onCancel, className
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     // respect IME composition (CJK input)
-    if (e.nativeEvent.isComposing || e.keyCode === 229) return
+    if (e.nativeEvent.isComposing) return
     if (e.key === 'Enter') {
       e.preventDefault()
       commit()
