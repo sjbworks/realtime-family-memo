@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Block, PartialBlock } from '@blocknote/core'
 import { usePageContent } from '@/hooks/use-page-content'
-import { DEFAULT_GROUP_TITLE, DEFAULT_PAGE_TITLE, type Group, type Page, type Profile } from '@/lib/notes-data'
+import { type Group, type Page, type Profile } from '@/lib/notes-data'
 import {
   buildTree,
   deletePageRow,
@@ -13,14 +13,25 @@ import {
   getCurrentUser,
   insertPageRow,
   toErrorMessage,
-  toPage,
   updatePagePositions,
   updatePageTitle,
   type CurrentUser,
-  type PageRow,
 } from '@/lib/notes-api'
+import {
+  applyReorder,
+  findGroupIdOfPage,
+  findPage,
+  findTitle,
+  isDraftId,
+  neighborPageId,
+  newDraftId,
+  nextPosition,
+  renameNode,
+  replaceDraft,
+  resolveTitle,
+  type EditKind,
+} from '@/lib/notes-tree'
 
-type EditKind = 'group' | 'page'
 /** 未保存の新規行かどうかを isNew で持つ。isNew の間だけ id は下書き id */
 type Editing = { id: string; kind: EditKind; isNew: boolean } | null
 
@@ -66,9 +77,6 @@ type NotesContextValue = {
 
 const NotesContext = createContext<NotesContextValue | null>(null)
 
-const DRAFT_PREFIX = 'draft-'
-const isDraftId = (id: string) => id.startsWith(DRAFT_PREFIX)
-
 /** ノート画面のルート。ここに開いているページの id を足したものが URL になる */
 export const NOTES_PATH = '/notes'
 
@@ -79,110 +87,6 @@ const pageIdFromPath = (pathname: string): string | null => {
   if (!pathname.startsWith(`${NOTES_PATH}/`)) return null
   const [segment] = pathname.slice(NOTES_PATH.length + 1).split('/')
   return segment ? decodeURIComponent(segment) : null
-}
-
-// ------------------------------------------------------------------ helpers
-
-/** 空欄のまま確定されたときは DB 側の default と揃えた既定タイトルにする */
-const resolveTitle = (value: string, kind: EditKind): string => {
-  return value.trim() || (kind === 'group' ? DEFAULT_GROUP_TITLE : DEFAULT_PAGE_TITLE)
-}
-
-const findPage = (groups: Group[], pageId: string | null): Page | null => {
-  if (!pageId) return null
-  for (const group of groups) {
-    const page = group.pages.find((p) => p.id === pageId)
-    if (page) return page
-  }
-  return null
-}
-
-const findTitle = (groups: Group[], id: string, kind: EditKind): string | null => {
-  if (kind === 'group') return groups.find((g) => g.id === id)?.name ?? null
-  return findPage(groups, id)?.title ?? null
-}
-
-const findGroupIdOfPage = (groups: Group[], pageId: string): string | null => {
-  return groups.find((g) => g.pages.some((p) => p.id === pageId))?.id ?? null
-}
-
-const renameNode = (groups: Group[], id: string, kind: EditKind, name: string): Group[] => {
-  if (kind === 'group') {
-    return groups.map((g) => (g.id === id ? { ...g, name } : g))
-  }
-  return groups.map((g) => ({
-    ...g,
-    pages: g.pages.map((p) => (p.id === id ? { ...p, title: name } : p)),
-  }))
-}
-
-const replaceDraft = (groups: Group[], draftId: string, kind: EditKind, row: PageRow): Group[] => {
-  if (kind === 'group') {
-    return groups.map((g) =>
-      g.id === draftId
-        ? {
-            ...g,
-            id: row.id,
-            name: row.title,
-            position: row.position,
-            pages: g.pages.map((p) => ({ ...p, groupId: row.id })),
-          }
-        : g
-    )
-  }
-  return groups.map((g) => ({
-    ...g,
-    pages: g.pages.map((p) => (p.id === draftId ? toPage(row, g.id) : p)),
-  }))
-}
-
-/**
- * 末尾に足す行の position。既存の兄弟の最大値 + 1 にする。
- *
- * 配列の添字（length - 1）で代用すると、途中の行を削除したあと position が 0,2 のように
- * 飛んだ並びで破綻する。新しい行が既存の行より小さい値を貰い、画面では末尾に見えているのに
- * リロードすると上に飛ぶ（グループ側では既存の行と同じ値になり重複する）。
- * 下書きは position を持たないので -1 扱いで数に入らない。
- */
-const nextPosition = (siblings: { position: number | null }[]): number => {
-  return siblings.reduce((max, s) => Math.max(max, s.position ?? -1), -1) + 1
-}
-
-/**
- * 並び替えの計算。並べ直した配列と、DB に書き戻す必要のある行だけを返す。
- * position は必ず 0 から振り直すので、null や重複が入っていた行もここで揃う。
- * 動かせないとき（範囲外 / 未保存の下書きを含む）は null。
- */
-const applyReorder = <T extends { id: string; position: number | null }>(
-  list: T[],
-  fromIndex: number,
-  toIndex: number
-): { next: T[]; updates: { id: string; position: number }[] } | null => {
-  if (fromIndex === toIndex) return null
-  if (fromIndex < 0 || toIndex < 0 || fromIndex >= list.length || toIndex >= list.length) return null
-
-  const moved = [...list]
-  const [item] = moved.splice(fromIndex, 1)
-  moved.splice(toIndex, 0, item)
-
-  // 下書きはまだ行が無いので position を振れない
-  if (moved.some((i) => isDraftId(i.id))) return null
-
-  return {
-    next: moved.map((i, index) => ({ ...i, position: index })),
-    updates: moved.flatMap((i, index) => (i.position === index ? [] : [{ id: i.id, position: index }])),
-  }
-}
-
-/** 削除したページの代わりに選択するページ（同じグループの隣 → 全体の先頭） */
-const neighborPageId = (groups: Group[], removedId: string): string | null => {
-  const group = groups.find((g) => g.pages.some((p) => p.id === removedId))
-  if (group) {
-    const index = group.pages.findIndex((p) => p.id === removedId)
-    const sibling = group.pages[index + 1] ?? group.pages[index - 1]
-    if (sibling) return sibling.id
-  }
-  return groups.flatMap((g) => g.pages).find((p) => p.id !== removedId)?.id ?? null
 }
 
 export const useNotes = () => {
@@ -206,14 +110,10 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [profileList, setProfileList] = useState<Profile[]>([])
 
-  // 開いているページは state ではなく URL が持つ。共有された /notes/<pageId> を
-  // 踏めばそのページが開き、戻る / 進むもブラウザ任せで動く。
-  // ツリーに無い id（削除済み・他人の作った URL の打ち間違い）は選択しない。
-  const routePageId = pageIdFromPath(pathname)
-  const activePage = findPage(groups, routePageId)
+  const requestedPageId = pageIdFromPath(pathname)
+  const activePage = findPage(groups, requestedPageId)
   const activePageId = activePage?.id ?? null
 
-  // 本文の読み込み / 保存。保存中・エラーはサイドバー操作と同じ表示に合流させる
   const { contentPageId, initialContent, contentStatus, contentError, handleContentChange, dismissContentError } =
     usePageContent(activePageId, currentUser?.id ?? null)
 
@@ -258,12 +158,12 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   // 読み込みが終わるまで待つのは、共有 URL のページをツリーが揃う前に見失わないため。
   useEffect(() => {
     if (loading) return
-    if (routePageId && findPage(groups, routePageId)) return
+    if (requestedPageId && findPage(groups, requestedPageId)) return
 
     const first = groups.flatMap((g) => g.pages).find((p) => !isDraftId(p.id))
     if (first) router.replace(pagePath(first.id))
-    else if (routePageId) router.replace(NOTES_PATH)
-  }, [loading, groups, routePageId, router])
+    else if (requestedPageId) router.replace(NOTES_PATH)
+  }, [loading, groups, requestedPageId, router])
 
   /** 保存インジケータを出しつつ実行し、失敗したら rollback して理由を表示する */
   const runSave = async (fn: () => Promise<void>, message: string, rollback?: () => void) => {
@@ -313,14 +213,14 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   // 空の行を DB に作らないよう、新規作成はまず下書きとしてローカルに置き、
   // 名前が確定した commitEdit のタイミングで INSERT する。
   const addGroup = () => {
-    const id = `${DRAFT_PREFIX}${Date.now()}`
+    const id = newDraftId()
     setGroups((prev) => [...prev, { id, name: '', pages: [], position: null }])
     setOpenGroups((prev) => ({ ...prev, [id]: true }))
     setEditing({ id, kind: 'group', isNew: true })
   }
 
   const addPage = (groupId: string) => {
-    const id = `${DRAFT_PREFIX}${Date.now()}`
+    const id = newDraftId()
     setOpenGroups((prev) => ({ ...prev, [groupId]: true }))
     setGroups((prev) =>
       prev.map((g) =>
