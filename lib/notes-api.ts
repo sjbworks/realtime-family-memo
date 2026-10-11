@@ -155,27 +155,29 @@ export const toPage = (row: PageRow, groupId: string): Page => {
   }
 }
 
+/** parent_id が入っている行。親の id が確定しているので narrowing 用に型を分けておく */
+type PageRowWithParent = PageRow & { parent_id: string }
+
+const isGroupRow = (row: PageRow): boolean => row.parent_id === null
+const isPageRow = (row: PageRow): row is PageRowWithParent => row.parent_id !== null
+
 /** フラットな行の配列を、サイドバー用の 2 階層ツリーに畳む */
 export const buildTree = (rows: PageRow[]): Group[] => {
-  const groups: Group[] = []
-  const byId = new Map<string, Group>()
-
-  for (const row of rows) {
-    if (row.parent_id !== null) continue
-    const group: Group = { id: row.id, name: row.title, pages: [], position: row.position }
-    byId.set(group.id, group)
-    groups.push(group)
+  // まず親の id ごとに仕分ける。孫以降の階層はどのグループからも引かれないバケツに
+  // 入り、そのまま捨てられる — サイドバーは 2 階層しか表示しない。
+  const pagesByParent = new Map<string, Page[]>()
+  for (const row of rows.filter(isPageRow)) {
+    const pages = pagesByParent.get(row.parent_id) ?? []
+    pages.push(toPage(row, row.parent_id))
+    pagesByParent.set(row.parent_id, pages)
   }
 
-  for (const row of rows) {
-    if (row.parent_id === null) continue
-    // 孫以降の階層は今のサイドバーでは表示しないため、親がグループの行だけ拾う
-    const group = byId.get(row.parent_id)
-    if (!group) continue
-    group.pages.push(toPage(row, group.id))
-  }
-
-  return groups
+  return rows.filter(isGroupRow).map((row) => ({
+    id: row.id,
+    name: row.title,
+    pages: pagesByParent.get(row.id) ?? [],
+    position: row.position,
+  }))
 }
 
 export const toErrorMessage = (e: unknown, fallback: string): string => {
